@@ -8,7 +8,7 @@ This is the factual handoff for new conversations. It records confirmed state, d
 
 ## Current Phase
 
-**Foundation / pre-implementation research and architecture.**
+**Foundation / pre-implementation architecture and planning.**
 
 Environment inspection and official dataset-resource research are complete. The first implementation target remains Milestone 1:
 
@@ -30,7 +30,7 @@ No detector code, project scaffold, dependency manifest, tests, model, API, or d
 - Repository-wide operating rules: `AGENTS.md`
 - Repository: `/home/agntdrgn/WorkSpace/SIH26145`
 - Git branch: `main`
-- Current base commit: `e1b47ac` (`Add initial AGENTS and PROGRESS documentation for SIH26145 project`)
+- Current base commit: `eb788b8` (`Update AGENTS and PROGRESS documentation; add architecture design for Milestone 1`)
 - Remote: `git@github.com:AgentPhoenix7/SIH26145.git`
 
 The official problem requires:
@@ -68,10 +68,12 @@ Files currently present or being added:
 - `PROGRESS.md`: this handoff.
 - `docs/problem.md`: user-provided official problem statement.
 - `docs/dataset-research.md`: completed initial dataset/external-resource research.
+- `docs/architecture.md`: approved Milestone 1 design with explicit invariant ownership and bounds.
+- `docs/superpowers/plans/2026-08-26-milestone-1-streaming-port-scan.md`: approved detailed test-first implementation plan.
 
 There is no `pyproject.toml`, lockfile, source tree, test tree, Docker/Compose configuration, sample PCAP, model artifact, or frontend yet. Do not infer that any feature works.
 
-At final verification for this update, `AGENTS.md` and `PROGRESS.md` were tracked and modified, while `docs/architecture.md` was new and untracked. Inspect current `git status` before continuing because the user may commit or edit these files between conversations.
+At final verification for this update, the base worktree was clean at `eb788b8` before the planning documents were edited. Inspect current `git status` before continuing because the user may commit or edit these files between conversations.
 
 ## Confirmed Environment Snapshot
 
@@ -139,6 +141,18 @@ The user also approved the native-Zeek stdout JSONL design for Milestone 1. `doc
 
 A read-only Zeek 8.2.2 probe against the installed `nmap-vsn.pcap` confirmed that `connection_SYN_packet` with `pkt$is_orig` emits 17 immediate SYN events and that a `zeek_done` handler emits after them. This verifies the proposed Zeek event mechanism only; it is not a project end-to-end test or a dataset selection. The installed PCAP remains unsuitable as a committed fixture because it is below the initial fan-out thresholds and redistribution provenance has not been established.
 
+### 2026-08-26 — architecture review and Milestone 1 implementation plan
+
+Completed:
+
+- Re-read the official problem, repository rules, progress record, and Milestone 1 architecture against the clean committed state at `eb788b8`.
+- Reconfirmed native Zeek 8.2.2, Python 3.13.15, uv 0.12.5, and Bun 1.4.0 without installing or changing any tool.
+- Confirmed the architecture's native-Zeek packet-event JSONL direction remains the smallest compliant streaming slice.
+- Identified and received user approval for explicit Zeek stdout flushing, single ownership of timestamp regression, bounded cooldown storage, a post-EOS child-exit bound, initial heuristic thresholds/confidence, and IPv4-only end-to-end fixtures with IPv6 unit coverage.
+- Wrote and received user approval for the detailed test-first plan at `docs/superpowers/plans/2026-08-26-milestone-1-streaming-port-scan.md`.
+
+No source tree, dependency manifest, fixture, detector, runner, test, or runtime behavior was created during planning. Implementation is now authorized in an isolated worktree.
+
 ## Current SIH26145 Compliance Snapshot
 
 Do not upgrade any status without current evidence.
@@ -165,7 +179,7 @@ PPT evidence captured:        NO
 
 ## Immediate Next Objective
 
-Review and then plan implementation of only Milestone 1 using the verified native Zeek 8.2.2 installation. The approved design is recorded in `docs/architecture.md`:
+Execute the approved detailed Milestone 1 plan using the verified native Zeek 8.2.2 installation. The approved design is recorded in `docs/architecture.md` and the execution plan is in `docs/superpowers/plans/2026-08-26-milestone-1-streaming-port-scan.md`:
 
 1. A small Zeek policy handles originator `connection_SYN_packet` events and emits versioned JSON Lines immediately as packets are processed.
 2. Python validates each line, owns bounded sliding-window state, deduplicates retransmitted SYNs by Zeek flow UID, and produces evidence-bearing alerts.
@@ -198,18 +212,15 @@ This is an execution order, not a claim that later work is designed or complete.
 
 ### MVP NOW
 
-1. **Milestone 1 design review:** review `docs/architecture.md`; do not scaffold until its schemas, thresholds, failure behavior, and verification approach are accepted.
-2. **Milestone 1 implementation plan:** translate the approved design into small test-first tasks with exact files, commands, and verification.
-3. **Foundation with first vertical slice:** add only the Python/uv structure, dependencies, configuration, tests, and documentation required by Milestone 1; avoid empty future directories.
-4. **Reproducible fixtures/lab:** create or obtain tiny benign and scan PCAPs safely; record scenario manifests and provenance; keep large captures out of Git.
-5. **SYN/DDoS:** extend the proven event/window path with rates, ratios, and source/destination entropy; add benign and attack evidence.
-6. **DNS feature parity and data:** add versioned passive DNS events/features; identify licensed benign/DGA sources; generate DNS-tunnelling scenarios; split by scenario/family.
-7. **Genuine ML:** train and compare a baseline plus a practical tree model; evaluate honestly; export the selected model and schema; integrate and benchmark offline local inference with evidence.
-8. **Exfiltration:** implement outbound/inbound asymmetry and baseline-aware evidence using controlled scenarios.
-9. **C2 beaconing:** add jitter-tolerant inter-arrival/periodicity detection if core paths are stable.
-10. **API/dashboard:** expose validated alerts and provide the simplest reliable replay visualization with threat, severity, confidence, evidence, and time.
-11. **End-to-end evaluation:** measure false positives, throughput, events/flows per second, alert latency, CPU, memory, and model inference on documented hardware/configuration.
-12. **Feature freeze:** stabilize the demo, capture screenshots/plots, finish traceability, limitations, README, PPT notes, and rehearsal steps.
+1. **Foundation with first vertical slice:** execute the approved plan task-by-task, adding only the Python/uv structure, contracts, bounded detector, native Zeek replay, fixtures, tests, and evidence required by Milestone 1.
+2. **SYN/DDoS:** extend the proven event/window path with rates, ratios, and source/destination entropy; add benign and attack evidence.
+3. **DNS feature parity and data:** add versioned passive DNS events/features; identify licensed benign/DGA sources; generate DNS-tunnelling scenarios; split by scenario/family.
+4. **Genuine ML:** train and compare a baseline plus a practical tree model; evaluate honestly; export the selected model and schema; integrate and benchmark offline local inference with evidence.
+5. **Exfiltration:** implement outbound/inbound asymmetry and baseline-aware evidence using controlled scenarios.
+6. **C2 beaconing:** add jitter-tolerant inter-arrival/periodicity detection if core paths are stable.
+7. **API/dashboard:** expose validated alerts and provide the simplest reliable replay visualization with threat, severity, confidence, evidence, and time.
+8. **End-to-end evaluation:** measure false positives, throughput, events/flows per second, alert latency, CPU, memory, and model inference on documented hardware/configuration.
+9. **Feature freeze:** stabilize the demo, capture screenshots/plots, finish traceability, limitations, README, PPT notes, and rehearsal steps.
 
 ## Deadline Schedule
 
@@ -233,6 +244,7 @@ Inline enforcement, active probing, payload decryption, and return-path actions 
 ## Open Decisions and Risks
 
 - **Zeek event streaming:** the stdout JSONL mechanism is designed but not yet implemented or tested in the project.
+- **Milestone 1 implementation:** the approved stdout JSONL mechanism and detector design are not yet implemented or tested in the project.
 - **Dataset:** no official artifact exists; every supplemental source needs licence/provenance review.
 - **Threat coverage:** encrypted-session coverage has no explicit official generator and is the highest deadline risk.
 - **ML:** DGA corpus and benign-domain source are not selected; no measured model feasibility or metrics exist.

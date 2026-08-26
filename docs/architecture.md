@@ -1,6 +1,6 @@
 # Milestone 1 Architecture: Streaming Port-Scan Detection
 
-Status: **approved direction; written-spec review pending; not implemented**
+Status: **approved; implementation pending**
 
 Date: **2026-08-26**
 
@@ -34,10 +34,10 @@ The native Zeek dependency is already installed. No container, extra Zeek packag
 
 | Component | Owns | Must not own |
 | --- | --- | --- |
-| Replay runner | Zeek process lifecycle, pipe draining, record ordering, run success/failure | Packet parsing or scan heuristics |
+| Replay runner | Zeek process lifecycle, pipe draining, stream order, EOS consistency, and run success/failure | Packet parsing, event-time state, or scan heuristics |
 | Zeek policy | Passive packet parsing and `tcp_syn_attempt_v1` emission | Alerting, thresholds, long-lived aggregation, or network actions |
 | Input schema | Trust-boundary validation and schema-version discrimination | Detection policy |
-| Scan detector | Deduplication, expiry, bounded rolling state, thresholding, cooldown, and alert evidence | Process management or packet parsing |
+| Scan detector | Event-time watermark, deduplication, expiry, bounded rolling state, thresholding, cooldown, and alert evidence | Process management or packet parsing |
 | Alert schema | Common output validation | Detector-specific state |
 
 Each boundary has one concrete implementation in Milestone 1. No interface or service layer is needed until a second implementation requires one.
@@ -52,9 +52,9 @@ zeek -b -r <input.pcap> <absolute-path-to-emit-syn-policy>
 
 The runner never constructs a shell command. The PCAP path is data, not executable text. Zeek runs in a newly created temporary working directory so any incidental files cannot pollute the repository. Bare mode (`-b`) avoids loading site policy or default logging that could contaminate the JSONL stdout contract. The controlled fixtures will contain valid checksums, so replay does not use `-C` to ignore checksum validation.
 
-The Zeek policy handles `connection_SYN_packet(c, pkt)`. That Zeek event covers both SYN and SYN-ACK packets, so the policy emits only when `pkt$is_orig` is true. It converts Zeek ports to integer counts and writes one compact JSON object per line. It performs no aggregation and contacts no endpoint.
+The Zeek policy handles `connection_SYN_packet(c, pkt)`. That Zeek event covers both SYN and SYN-ACK packets, so the policy emits only when `pkt$is_orig` is true. It converts Zeek ports to integer counts and writes one compact JSON object per line. It calls `flush_all()` after each line so delivery remains incremental when stdout is a pipe. It performs no aggregation and contacts no endpoint.
 
-At `zeek_done` priority `-100`, the policy emits exactly one end-of-stream record. This is an internal stream sentinel, not a detector alert.
+At `zeek_done` priority `-100`, the policy emits and flushes exactly one end-of-stream record. This is an internal stream sentinel, not a detector alert.
 
 ## Zeek-to-Python Stream Contract
 
@@ -102,11 +102,11 @@ The runner consumes stdout one bounded line at a time and submits a validated ev
 
 Zeek stderr is drained concurrently into a 64 KiB recent-message ring and forwarded as diagnostics. This prevents a full stderr pipe from deadlocking stdout consumption. Alert JSON is written only to stdout; diagnostics and run errors go only to stderr.
 
-The input line limit is 16 KiB. A blank, oversized, invalid-UTF-8, malformed JSON, unknown schema, invalid field, timestamp regression, or unexpected stdout record is fatal. The runner terminates the child, then kills only that child if it has not exited after 2 seconds. A non-zero Zeek exit, broken pipe, or missing sentinel is also fatal. Alerts already emitted remain evidence from an incomplete run, but the run is explicitly marked failed and must not be reported as a successful replay.
+The input line limit is 16 KiB including the terminating newline. A blank, oversized, unterminated, invalid-UTF-8, malformed JSON, unknown schema, invalid field, timestamp regression, or unexpected stdout record is fatal. After EOS, Zeek must exit within 2 seconds; otherwise the run fails. On any failure, the runner terminates the child, then kills only that child if it has not exited after 2 seconds. A non-zero Zeek exit, broken pipe, or missing sentinel is also fatal. Alerts already emitted remain evidence from an incomplete run, but the run is explicitly marked failed and must not be reported as a successful replay.
 
 ## Event Time and Ordering
 
-All windows use capture time, never wall-clock processing time. The Milestone 1 watermark is the greatest accepted `ts`, and allowed lateness is zero. Equal timestamps preserve input order. Any record with `ts` below the watermark fails the run before it mutates detector state.
+All windows use capture time, never wall-clock processing time. The concrete scan-window state engine owns the Milestone 1 watermark, which is the greatest accepted `ts`, and allowed lateness is zero. Equal timestamps preserve input order. Any record with `ts` below the watermark fails before it mutates detector state. The runner propagates that failure and owns only subprocess stream order and EOS consistency.
 
 Strict monotonic input is appropriate for deterministic PCAP fixtures, avoids silently distorting rate calculations, and allows immediate alerting without a reorder buffer. A future live or merged-capture ingest may add a bounded lateness heap in the runner while leaving the schema and detector unchanged. That extension is not part of Milestone 1.
 
@@ -128,10 +128,13 @@ Expiry updates all counters, so unique counts always describe the current window
 | Attempts for one source | 4,096 |
 | Attempts across all sources | 100,000 |
 | Retained deduplication UIDs | 200,000 |
+| Retained cooldown sources | 4,096 |
 
 Expiry runs before a limit check. If a valid event would still exceed a limit, the run fails with a named resource-limit diagnostic instead of silently evicting evidence or growing memory without bound. These are safety constants for the first prototype, not user-facing tuning knobs. Their actual memory cost must be measured before claiming a throughput capacity.
 
 The first occurrence of a UID within its 60-second TTL enters the source window. Further occurrences do not change attempt counts or fan-out evidence. The deduplication lifetime deliberately exceeds the scan window so delayed TCP retransmissions do not become fresh attempts.
+
+Cooldown state is a separate expiry-ordered `source IP -> last alert timestamp` map. Entries expire at `last alert timestamp + cooldown`; expiry therefore permits a re-alert exactly at the configured cooldown boundary. The map is limited to 4,096 entries and fails without partial mutation if a new alert would exceed that limit after expiry.
 
 ## Detection Rule
 
@@ -244,7 +247,7 @@ Later API and dashboard work may open a loopback service for local display, but 
 
 Do not commit the installed `nmap-vsn.pcap`: it has only 17 SYN attempts, does not meet the initial thresholds, and its provenance/licence has not been established for redistribution.
 
-Instead, a small reproducible generator will write PCAP bytes directly to a file using the Python standard library. It will construct valid Ethernet, IPv4/IPv6 where needed, and TCP checksums entirely offline. It must never open a raw or ordinary network socket. Addresses come from documentation-only ranges such as `192.0.2.0/24` and `198.51.100.0/24`.
+Instead, a small reproducible generator will write PCAP bytes directly to a file using the Python standard library. For Milestone 1 it will construct valid Ethernet, IPv4, and TCP checksums entirely offline. IPv6 acceptance remains covered by schema and detector unit tests; an IPv6 PCAP encoder is deferred until a later end-to-end requirement needs it. The generator must never open a raw or ordinary network socket. Addresses come from documentation-only ranges such as `192.0.2.0/24` and `198.51.100.0/24`.
 
 Committed fixture manifests will record generator version, scenario label, parameters, expected outcome, timestamp range, endpoints, packet count, capture hash, and provenance. Minimum fixtures are:
 
@@ -289,4 +292,4 @@ Known limitations of this slice are explicit:
 - Zeek UID deduplication handles TCP SYN retransmissions within one Zeek run; it is not a durable identity across separate replays.
 - No throughput or latency claim exists until measured on the documented hardware.
 
-After user approval of this written design, the next action is a detailed Milestone 1 implementation plan. Code scaffolding begins only after that plan is reviewed.
+The user approved this design and the detailed plan at `docs/superpowers/plans/2026-08-26-milestone-1-streaming-port-scan.md` on 2026-08-26. Implementation proceeds test-first in an isolated worktree.
