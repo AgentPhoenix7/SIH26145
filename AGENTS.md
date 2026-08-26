@@ -122,7 +122,13 @@ Passive traffic / deterministic PCAP replay
   -> simple dashboard
 ```
 
-Evaluate Zeek deployment before installation; a reproducible container is preferable if it fits capture/replay needs and the deadline. A simpler parser may replace Zeek only after explaining how it remains compliant and why the change materially reduces delivery risk.
+Use the package-managed native Zeek 8.2.2 installation for PCAP replay. The
+binary is `/opt/zeek/bin/zeek`, and `/opt/zeek/bin` is configured in the user's
+zsh `PATH`. Invoke `zeek` through `PATH` in project commands rather than
+hard-coding the absolute path. Do not add a Zeek container or install another
+Zeek version unless the verified native installation becomes incompatible. A
+simpler parser may replace Zeek only after explaining how it remains compliant
+and why the change materially reduces delivery risk.
 
 Keep components focused and testable. Do not create empty directories or interfaces with only one imagined implementation. Add a dependency, service, configuration surface, or abstraction only when required behavior or lifecycle cost justifies it.
 

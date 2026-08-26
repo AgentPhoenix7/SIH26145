@@ -30,7 +30,7 @@ No detector code, project scaffold, dependency manifest, tests, model, API, or d
 - Repository-wide operating rules: `AGENTS.md`
 - Repository: `/home/agntdrgn/WorkSpace/SIH26145`
 - Git branch: `main`
-- Current base commit: `11b38a5` (`Add dataset and problem statement documentation for SIH26145`)
+- Current base commit: `e1b47ac` (`Add initial AGENTS and PROGRESS documentation for SIH26145 project`)
 - Remote: `git@github.com:AgentPhoenix7/SIH26145.git`
 
 The official problem requires:
@@ -53,11 +53,11 @@ The official problem requires:
 - Primary MVP demonstration input: **deterministic incremental PCAP replay**.
 - Live-interface capture: **deferred until replay is verified**.
 - Replay and future live ingest must share the same event/feature/detector path.
-- Zeek remains the preferred parser, subject to choosing the simplest reproducible deployment method.
+- Native package-managed Zeek 8.2.2 is the selected parser for PCAP replay. `/opt/zeek/bin` is configured in the user's zsh `PATH`.
 - Frontend dependency management and scripts will use **Bun**, not npm.
 - The MVP is a hybrid statistical/behavioral/ML system, not a single-model IDS.
 - At least one genuine trained/deployed model is required; DGA/DNS remains the preferred first ML target unless data research proves another target better.
-- No installations or WSL configuration changes have been made.
+- No project dependencies have been installed. The user added `/opt/zeek/bin` to zsh `PATH` so the existing Zeek package is discoverable.
 
 ## Repository State
 
@@ -71,7 +71,7 @@ Files currently present or being added:
 
 There is no `pyproject.toml`, lockfile, source tree, test tree, Docker/Compose configuration, sample PCAP, model artifact, or frontend yet. Do not infer that any feature works.
 
-At final verification for this update, `docs/problem.md` and `docs/dataset-research.md` were tracked by commit `11b38a5`; `AGENTS.md` and `PROGRESS.md` remained untracked. Inspect current `git status` before continuing.
+At final verification for this update, `AGENTS.md` and `PROGRESS.md` were tracked and modified, while `docs/architecture.md` was new and untracked. Inspect current `git status` before continuing because the user may commit or edit these files between conversations.
 
 ## Confirmed Environment Snapshot
 
@@ -90,9 +90,9 @@ These facts were directly checked on 2026-08-26:
 | Docker CLI/daemon | 29.7.2, daemon verified usable outside managed sandbox |
 | Docker Compose | 5.5.0 |
 | TShark | 4.6.4 |
-| Zeek | not installed on the WSL host |
+| Zeek | 8.2.2 installed by the package manager at `/opt/zeek/bin/zeek`; interactive zsh resolves `zeek` through `PATH` |
 | NVIDIA GPU | GeForce RTX 3050 Laptop GPU, 4 GiB VRAM, driver 610.62 |
-| CUDA toolkit/NVCC | not installed |
+| CUDA toolkit/NVCC | CUDA toolkit 13.3.1 installed; NVCC 13.3.73; CUDA libraries registered with `ldconfig`; `/usr/local/cuda/bin` is configured in the user's zsh `PATH` |
 | Bun | 1.4.0 at `/home/agntdrgn/.bun/bin/bun`; selected for frontend dependencies and scripts |
 | Node/npm | not installed and not selected for this project |
 | Python PCAP libraries | Scapy, dpkt, and PyShark not installed |
@@ -113,8 +113,10 @@ Completed:
 - Confirmed only the initial README existed in committed history.
 - Inspected OS, kernel, CPU, RAM, disk, Python, uv, Git, Docker/Compose, Zeek, TShark, GPU/CUDA, Bun, Node/npm, build tools, and relevant packet libraries.
 - Verified Docker daemon and GPU availability outside the restricted sandbox.
+- Confirmed the package-managed Zeek 8.2.2 installation and verified the user's zsh `PATH` entry for `/opt/zeek/bin`.
+- Confirmed the installed CUDA toolkit packages (`cuda-toolkit` 13.3.1) and NVCC 13.3.73 at `/usr/local/cuda/bin/nvcc`. The user then requested adding `/usr/local/cuda/bin` to zsh `PATH`; a fresh interactive shell resolves `nvcc` through that entry.
 
-No tool was installed and no configuration was changed.
+No project dependency was installed during this work. Zeek and CUDA were already package-managed host tools; the user added the Zeek binary directory to their zsh `PATH`.
 
 ### 2026-08-26 — official dataset/external-resource research
 
@@ -132,6 +134,10 @@ The unrelated PDF was downloaded only to `/tmp` for inspection and was not added
 ### 2026-08-26 — architecture decision
 
 The user approved deterministic incremental PCAP replay as the primary MVP demonstration input. Live capture is deferred until the replay pipeline is verified.
+
+The user also approved the native-Zeek stdout JSONL design for Milestone 1. `docs/architecture.md` now defines the event and EOS schemas, subprocess and failure behavior, strict capture-time ordering, bounded scan state, initial thresholds, cooldown, confidence/severity calculation, alert schema, passive security boundary, generated-fixture provenance, and verification strategy.
+
+A read-only Zeek 8.2.2 probe against the installed `nmap-vsn.pcap` confirmed that `connection_SYN_packet` with `pkt$is_orig` emits 17 immediate SYN events and that a `zeek_done` handler emits after them. This verifies the proposed Zeek event mechanism only; it is not a project end-to-end test or a dataset selection. The installed PCAP remains unsuitable as a committed fixture because it is below the initial fan-out thresholds and redistribution provenance has not been established.
 
 ## Current SIH26145 Compliance Snapshot
 
@@ -159,13 +165,13 @@ PPT evidence captured:        NO
 
 ## Immediate Next Objective
 
-Design and then implement only Milestone 1. The next conversation should first choose how Zeek will run for reproducible PCAP replay:
+Review and then plan implementation of only Milestone 1 using the verified native Zeek 8.2.2 installation. The approved design is recorded in `docs/architecture.md`:
 
-1. **Recommended:** pinned Docker image or minimal local container definition. This avoids a host-wide install and improves demo reproducibility, but image availability and mounted-file behavior must be verified.
-2. Native Zeek installation. This may simplify command usage but requires package availability and potentially root-level WSL changes.
-3. TShark-based temporary parser only if Zeek cannot be made reliable quickly. This changes the preferred architecture and requires an explicit documented decision; do not silently substitute it.
+1. A small Zeek policy handles originator `connection_SYN_packet` events and emits versioned JSON Lines immediately as packets are processed.
+2. Python validates each line, owns bounded sliding-window state, deduplicates retransmitted SYNs by Zeek flow UID, and produces evidence-bearing alerts.
+3. An explicit end-of-stream record proves scan alerts are emitted before PCAP completion rather than being derived from a completed `conn.log`.
 
-No Zeek image or package has been selected or downloaded yet.
+No Zeek package, image, CUDA package, or sudo action is needed. CUDA is not required for Milestone 1.
 
 ## Milestone 1 Acceptance Conditions
 
@@ -192,23 +198,24 @@ This is an execution order, not a claim that later work is designed or complete.
 
 ### MVP NOW
 
-1. **Milestone 1 design:** choose Zeek execution, define the versioned connection-event boundary, incremental replay semantics, bounded scan state, alert schema, failure behavior, and focused verification.
-2. **Foundation with first vertical slice:** add only the Python/uv structure, dependencies, configuration, tests, and documentation required by Milestone 1; avoid empty future directories.
-3. **Reproducible fixtures/lab:** create or obtain tiny benign and scan PCAPs safely; record scenario manifests and provenance; keep large captures out of Git.
-4. **SYN/DDoS:** extend the proven event/window path with rates, ratios, and source/destination entropy; add benign and attack evidence.
-5. **DNS feature parity and data:** add versioned passive DNS events/features; identify licensed benign/DGA sources; generate DNS-tunnelling scenarios; split by scenario/family.
-6. **Genuine ML:** train and compare a baseline plus a practical tree model; evaluate honestly; export the selected model and schema; integrate offline local inference with evidence.
-7. **Exfiltration:** implement outbound/inbound asymmetry and baseline-aware evidence using controlled scenarios.
-8. **C2 beaconing:** add jitter-tolerant inter-arrival/periodicity detection if core coverage is stable.
-9. **API/dashboard:** expose validated alerts and provide the simplest reliable replay visualization with threat, severity, confidence, evidence, and time.
-10. **End-to-end evaluation:** measure false positives, throughput, events/flows per second, alert latency, CPU, memory, and model inference on documented hardware/configuration.
-11. **Feature freeze:** stabilize the demo, capture screenshots/plots, finish traceability, limitations, README, PPT notes, and rehearsal steps.
+1. **Milestone 1 design review:** review `docs/architecture.md`; do not scaffold until its schemas, thresholds, failure behavior, and verification approach are accepted.
+2. **Milestone 1 implementation plan:** translate the approved design into small test-first tasks with exact files, commands, and verification.
+3. **Foundation with first vertical slice:** add only the Python/uv structure, dependencies, configuration, tests, and documentation required by Milestone 1; avoid empty future directories.
+4. **Reproducible fixtures/lab:** create or obtain tiny benign and scan PCAPs safely; record scenario manifests and provenance; keep large captures out of Git.
+5. **SYN/DDoS:** extend the proven event/window path with rates, ratios, and source/destination entropy; add benign and attack evidence.
+6. **DNS feature parity and data:** add versioned passive DNS events/features; identify licensed benign/DGA sources; generate DNS-tunnelling scenarios; split by scenario/family.
+7. **Genuine ML:** train and compare a baseline plus a practical tree model; evaluate honestly; export the selected model and schema; integrate and benchmark offline local inference with evidence.
+8. **Exfiltration:** implement outbound/inbound asymmetry and baseline-aware evidence using controlled scenarios.
+9. **C2 beaconing:** add jitter-tolerant inter-arrival/periodicity detection if core paths are stable.
+10. **API/dashboard:** expose validated alerts and provide the simplest reliable replay visualization with threat, severity, confidence, evidence, and time.
+11. **End-to-end evaluation:** measure false positives, throughput, events/flows per second, alert latency, CPU, memory, and model inference on documented hardware/configuration.
+12. **Feature freeze:** stabilize the demo, capture screenshots/plots, finish traceability, limitations, README, PPT notes, and rehearsal steps.
 
 ## Deadline Schedule
 
 The original delivery schedule remains the planning baseline, but current evidence and blockers take precedence over pretending a calendar item is done:
 
-- **2026-08-26 — foundation:** inspection, resource research, architecture, Zeek-to-Python replay, structured alerts, and first scan detector. Inspection and resource research are complete; architecture and implementation remain.
+- **2026-08-26 — foundation:** inspection, resource research, architecture, Zeek-to-Python replay, structured alerts, and first scan detector. Inspection and resource research are complete; the architecture is documented and awaits written-spec review, while implementation remains.
 - **2026-08-27 — core detection/data:** stabilize bounded streaming state; complete scan and SYN-flood detection; add UDP-flood coverage if practical; establish controlled dataset generation/import and DNS training data.
 - **2026-08-28 — ML:** finalize DNS/DGA data and grouped splits; train and compare practical models; use CUDA only when beneficial; persist artifacts to Hugging Face; integrate and benchmark offline local inference.
 - **2026-08-29 — exfiltration/C2/dashboard:** implement exfiltration, add C2 if core paths are stable, build the simplest reliable dashboard, and exercise a complete replay demo. Attempt TLS/QUIC metadata coverage only if the core MVP is stable.
@@ -225,8 +232,7 @@ Inline enforcement, active probing, payload decryption, and return-path actions 
 
 ## Open Decisions and Risks
 
-- **Zeek deployment:** container versus native installation is not decided.
-- **Zeek event streaming:** exact mechanism for deterministic incremental consumption needs design; merely reading a completed log is insufficient.
+- **Zeek event streaming:** the stdout JSONL mechanism is designed but not yet implemented or tested in the project.
 - **Dataset:** no official artifact exists; every supplemental source needs licence/provenance review.
 - **Threat coverage:** encrypted-session coverage has no explicit official generator and is the highest deadline risk.
 - **ML:** DGA corpus and benign-domain source are not selected; no measured model feasibility or metrics exist.
@@ -239,7 +245,6 @@ Inline enforcement, active probing, payload decryption, and return-path actions 
 
 Create these only when the corresponding work begins; do not add empty files:
 
-- `docs/architecture.md`
 - `docs/features.md`
 - `docs/requirements-traceability.md`
 - `docs/evaluation.md`
