@@ -45,3 +45,9 @@ files = ["src", "tests", "tools"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sih26145"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/sih26145/py.typed" = "sih26145/py.typed"
+
+[tool.setuptools.package-data]
+"sih26145" = ["py.typed"]
