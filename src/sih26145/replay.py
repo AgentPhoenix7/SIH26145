@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import os
+import selectors
 import subprocess
 import sys
 import tempfile
 import threading
+import time
 from collections import deque
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -80,12 +83,23 @@ class ReplayError(RuntimeError):
         return self._stderr_tail.snapshot()
 
 
-def _drain_stderr(pipe: BinaryIO, tail: _StderrTail) -> None:
+def _drain_stderr(
+    pipe: BinaryIO,
+    tail: _StderrTail,
+    stop: threading.Event,
+) -> None:
     try:
-        while chunk := pipe.read(8_192):
-            tail.append(chunk)
-            sys.stderr.write(chunk.decode("utf-8", errors="replace"))
-            sys.stderr.flush()
+        with selectors.DefaultSelector() as selector:
+            selector.register(pipe, selectors.EVENT_READ)
+            while not stop.is_set():
+                if not selector.select(timeout=0.05):
+                    continue
+                chunk = os.read(pipe.fileno(), 8_192)
+                if not chunk:
+                    return
+                tail.append(chunk)
+                sys.stderr.write(chunk.decode("utf-8", errors="replace"))
+                sys.stderr.flush()
     except (OSError, ValueError):
         return
 
@@ -119,6 +133,38 @@ def _after_eos_diagnostic(raw: bytes) -> str:
     return "data_after_end_of_stream"
 
 
+def _remaining_post_eos_time(deadline: float, tail: _StderrTail) -> float:
+    remaining = deadline - time.monotonic()
+    if remaining <= 0.0:
+        raise ReplayError("post_end_of_stream_timeout", tail)
+    return remaining
+
+
+def _wait_for_post_eos_stdout(
+    stdout: BinaryIO,
+    deadline: float,
+    tail: _StderrTail,
+) -> None:
+    with selectors.DefaultSelector() as selector:
+        selector.register(stdout, selectors.EVENT_READ)
+        events = selector.select(_remaining_post_eos_time(deadline, tail))
+        if not events:
+            raise ReplayError("post_end_of_stream_timeout", tail)
+        remaining = os.read(stdout.fileno(), MAX_LINE_BYTES + 1)
+    if remaining:
+        raise ReplayError(_after_eos_diagnostic(remaining), tail)
+
+
+def _join_stderr_before_deadline(
+    thread: threading.Thread,
+    deadline: float,
+    tail: _StderrTail,
+) -> None:
+    thread.join(timeout=_remaining_post_eos_time(deadline, tail))
+    if thread.is_alive():
+        raise ReplayError("post_end_of_stream_timeout", tail)
+
+
 def _stop_and_reap(process: subprocess.Popen[bytes]) -> None:
     if process.poll() is not None:
         process.wait()
@@ -139,6 +185,7 @@ def run_command(
     """Consume one bounded JSONL stream from a direct child process."""
 
     stderr_tail = _StderrTail()
+    stderr_stop = threading.Event()
     process: subprocess.Popen[bytes] | None = None
     stderr_thread: threading.Thread | None = None
 
@@ -164,7 +211,7 @@ def run_command(
 
             stderr_thread = threading.Thread(
                 target=_drain_stderr,
-                args=(stderr, stderr_tail),
+                args=(stderr, stderr_tail, stderr_stop),
                 name=f"sih26145-stderr-{process.pid}",
                 daemon=True,
             )
@@ -181,6 +228,7 @@ def run_command(
                 record = _parse_record(raw, stderr_tail)
                 if isinstance(record, EndOfStreamV1):
                     eos = record
+                    post_eos_deadline = time.monotonic() + PROCESS_WAIT_SECONDS
                     break
 
                 try:
@@ -205,13 +253,18 @@ def run_command(
                 raise ReplayError("end_of_stream_timestamp_mismatch", stderr_tail)
 
             try:
-                return_code = process.wait(timeout=PROCESS_WAIT_SECONDS)
+                return_code = process.wait(
+                    timeout=_remaining_post_eos_time(post_eos_deadline, stderr_tail)
+                )
             except subprocess.TimeoutExpired:
                 raise ReplayError("post_end_of_stream_timeout", stderr_tail) from None
 
-            remaining = stdout.read(MAX_LINE_BYTES + 1)
-            if remaining:
-                raise ReplayError(_after_eos_diagnostic(remaining), stderr_tail)
+            _wait_for_post_eos_stdout(stdout, post_eos_deadline, stderr_tail)
+            _join_stderr_before_deadline(
+                stderr_thread,
+                post_eos_deadline,
+                stderr_tail,
+            )
             if return_code != 0:
                 raise ReplayError("child_exit_nonzero", stderr_tail)
 
@@ -226,7 +279,8 @@ def run_command(
                 if process.stdout is not None:
                     process.stdout.close()
             if stderr_thread is not None:
-                stderr_thread.join()
+                stderr_stop.set()
+                stderr_thread.join(timeout=PROCESS_WAIT_SECONDS)
             if process is not None and process.stderr is not None:
                 process.stderr.close()
 
@@ -240,10 +294,16 @@ def run_replay(
 
     if not pcap_path.is_file():
         raise ReplayError("pcap_not_regular_file")
+    try:
+        resolved_pcap = pcap_path.resolve(strict=True)
+    except OSError:
+        raise ReplayError("pcap_not_regular_file") from None
+    if not resolved_pcap.is_file():
+        raise ReplayError("pcap_not_regular_file")
 
     policy_resource = resources.files("sih26145").joinpath(
         "zeek/emit_syn_attempts.zeek"
     )
     with resources.as_file(policy_resource) as policy_path:
-        command = ("zeek", "-b", "-r", str(pcap_path), str(policy_path))
+        command = ("zeek", "-b", "-r", str(resolved_pcap), str(policy_path))
         return run_command(command, detector, emit_alert)

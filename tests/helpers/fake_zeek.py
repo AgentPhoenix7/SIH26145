@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import signal
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -112,6 +113,16 @@ def main() -> int:
     elif mode == "hang-after-eos":
         _write_stdout(_eos(0))
         _hang()
+    elif mode == "inherited-pipes-after-eos":
+        descendant = subprocess.Popen(
+            [sys.executable, "-c", "import time; time.sleep(4.0)"],
+            stdin=subprocess.DEVNULL,
+        )
+        pid_path.with_name(f"{pid_path.name}.descendant").write_text(
+            str(descendant.pid), encoding="ascii"
+        )
+        _write_stdout(_eos(0))
+        return 0
     else:
         raise ValueError(f"unknown fake mode: {mode}")
 

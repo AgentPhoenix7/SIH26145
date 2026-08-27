@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import signal
 import subprocess
 import sys
 import threading
@@ -47,6 +48,15 @@ def _stderr_threads() -> list[threading.Thread]:
         for thread in threading.enumerate()
         if thread.name.startswith("sih26145-stderr-")
     ]
+
+
+def _terminate_fixture_process(pid: int) -> None:
+    if not _process_exists(pid):
+        return
+    os.kill(pid, signal.SIGTERM)
+    deadline = time.monotonic() + 1.0
+    while _process_exists(pid) and time.monotonic() < deadline:
+        time.sleep(0.01)
 
 
 @pytest.mark.integration
@@ -207,6 +217,35 @@ def test_child_must_exit_within_two_seconds_after_eos(tmp_path: Path) -> None:
     assert _stderr_threads() == []
 
 
+@pytest.mark.integration
+def test_post_eos_deadline_covers_descendant_inherited_stdout_and_stderr(
+    tmp_path: Path,
+) -> None:
+    pid_path = tmp_path / "pid"
+    descendant_pid_path = tmp_path / "pid.descendant"
+    started = time.monotonic()
+
+    try:
+        with pytest.raises(ReplayError) as captured:
+            run_command(
+                _command("inherited-pipes-after-eos", pid_path),
+                _detector(),
+                lambda _alert: None,
+            )
+
+        elapsed = time.monotonic() - started
+        descendant_pid = _pid(descendant_pid_path)
+        assert captured.value.diagnostic == "post_end_of_stream_timeout"
+        assert elapsed >= 2.0
+        assert elapsed < 3.0
+        assert not _process_exists(_pid(pid_path))
+        assert _process_exists(descendant_pid)
+        assert _stderr_threads() == []
+    finally:
+        if descendant_pid_path.exists():
+            _terminate_fixture_process(_pid(descendant_pid_path))
+
+
 def test_run_replay_resolves_exact_native_zeek_command(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -234,6 +273,32 @@ def test_run_replay_resolves_exact_native_zeek_command(
     assert command[:4] == ("zeek", "-b", "-r", str(pcap))
     assert len(command) == 5
     assert command[4].endswith("/sih26145/zeek/emit_syn_attempts.zeek")
+
+
+def test_run_replay_canonicalizes_relative_pcap_before_isolated_cwd(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    relative_pcap = Path("relative-capture.pcap")
+    relative_pcap.write_bytes(b"pcap placeholder")
+    observed: list[tuple[str, ...]] = []
+
+    def fake_run_command(
+        command: Sequence[str],
+        detector: PortScanDetector,
+        emit_alert: Callable[[AlertV1], None],
+    ) -> ReplayResult:
+        del detector, emit_alert
+        observed.append(tuple(command))
+        return ReplayResult(0, 0, None)
+
+    monkeypatch.setattr(replay, "run_command", fake_run_command)
+
+    run_replay(relative_pcap, _detector(), lambda _alert: None)
+
+    assert observed[0][3] == str(relative_pcap.resolve())
+    assert Path(observed[0][3]).is_absolute()
 
 
 @pytest.mark.parametrize("path_kind", ["missing", "directory"])
