@@ -25,7 +25,7 @@ dev = [
 [tool.pytest.ini_options]
 addopts = "-ra --strict-markers"
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "."]
 markers = [
     "integration: exercises process or native Zeek boundaries",
     "e2e: exercises the complete native Zeek replay path",
