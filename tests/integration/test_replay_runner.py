@@ -308,9 +308,9 @@ def test_run_replay_resolves_exact_native_zeek_command(
     assert result == ReplayResult(0, 0, None)
     assert len(observed) == 1
     command = observed[0]
-    assert command[:4] == ("zeek", "-b", "-r", str(pcap))
-    assert len(command) == 5
-    assert command[4].endswith("/sih26145/zeek/emit_syn_attempts.zeek")
+    assert command[:5] == ("zeek", "-D", "-b", "-r", str(pcap))
+    assert len(command) == 6
+    assert command[5].endswith("/sih26145/zeek/emit_syn_attempts.zeek")
 
 
 def test_run_replay_canonicalizes_relative_pcap_before_isolated_cwd(
@@ -335,8 +335,8 @@ def test_run_replay_canonicalizes_relative_pcap_before_isolated_cwd(
 
     run_replay(relative_pcap, _detector(), lambda _alert: None)
 
-    assert observed[0][3] == str(relative_pcap.resolve())
-    assert Path(observed[0][3]).is_absolute()
+    assert observed[0][4] == str(relative_pcap.resolve())
+    assert Path(observed[0][4]).is_absolute()
 
 
 @pytest.mark.parametrize("path_kind", ["missing", "directory"])

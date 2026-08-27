@@ -313,5 +313,12 @@ def run_replay(
         "zeek/emit_syn_attempts.zeek"
     )
     with resources.as_file(policy_resource) as policy_path:
-        command = ("zeek", "-b", "-r", str(resolved_pcap), str(policy_path))
+        command = (
+            "zeek",
+            "-D",
+            "-b",
+            "-r",
+            str(resolved_pcap),
+            str(policy_path),
+        )
         return run_command(command, detector, emit_alert)
