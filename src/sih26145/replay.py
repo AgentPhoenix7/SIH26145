@@ -29,6 +29,7 @@ from sih26145.detection.scan_window import TimestampRegressionError
 
 STDERR_TAIL_BYTES = 65_536
 PROCESS_WAIT_SECONDS = 2.0
+STDERR_SHUTDOWN_RESERVE_SECONDS = 0.05
 
 
 @dataclass(frozen=True, slots=True)
@@ -147,12 +148,15 @@ def _wait_for_post_eos_stdout(
 ) -> None:
     with selectors.DefaultSelector() as selector:
         selector.register(stdout, selectors.EVENT_READ)
-        events = selector.select(_remaining_post_eos_time(deadline, tail))
+        remaining = _remaining_post_eos_time(deadline, tail)
+        events = selector.select(
+            max(0.0, remaining - STDERR_SHUTDOWN_RESERVE_SECONDS)
+        )
         if not events:
             raise ReplayError("post_end_of_stream_timeout", tail)
-        remaining = os.read(stdout.fileno(), MAX_LINE_BYTES + 1)
-    if remaining:
-        raise ReplayError(_after_eos_diagnostic(remaining), tail)
+        post_eos_bytes = os.read(stdout.fileno(), MAX_LINE_BYTES + 1)
+    if post_eos_bytes:
+        raise ReplayError(_after_eos_diagnostic(post_eos_bytes), tail)
 
 
 def _join_stderr_before_deadline(
@@ -188,6 +192,7 @@ def run_command(
     stderr_stop = threading.Event()
     process: subprocess.Popen[bytes] | None = None
     stderr_thread: threading.Thread | None = None
+    post_eos_deadline: float | None = None
 
     with tempfile.TemporaryDirectory(prefix="sih26145-replay-") as working_directory:
         try:
@@ -280,7 +285,10 @@ def run_command(
                     process.stdout.close()
             if stderr_thread is not None:
                 stderr_stop.set()
-                stderr_thread.join(timeout=PROCESS_WAIT_SECONDS)
+                join_timeout = PROCESS_WAIT_SECONDS
+                if post_eos_deadline is not None:
+                    join_timeout = max(0.0, post_eos_deadline - time.monotonic())
+                stderr_thread.join(timeout=join_timeout)
             if process is not None and process.stderr is not None:
                 process.stderr.close()
 

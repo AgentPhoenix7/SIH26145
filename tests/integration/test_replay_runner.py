@@ -236,14 +236,52 @@ def test_post_eos_deadline_covers_descendant_inherited_stdout_and_stderr(
         elapsed = time.monotonic() - started
         descendant_pid = _pid(descendant_pid_path)
         assert captured.value.diagnostic == "post_end_of_stream_timeout"
-        assert elapsed >= 2.0
-        assert elapsed < 3.0
+        assert elapsed >= 1.8
+        assert elapsed < 2.5
         assert not _process_exists(_pid(pid_path))
         assert _process_exists(descendant_pid)
         assert _stderr_threads() == []
     finally:
         if descendant_pid_path.exists():
             _terminate_fixture_process(_pid(descendant_pid_path))
+
+
+@pytest.mark.integration
+def test_post_eos_failure_cleanup_does_not_start_a_fresh_join_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pid_path = tmp_path / "pid"
+    descendant_pid_path = tmp_path / "pid.descendant"
+    release_drain = threading.Event()
+
+    def deliberately_stubborn_drain(*_args: Any) -> None:
+        release_drain.wait(timeout=6.0)
+
+    monkeypatch.setattr(replay, "_drain_stderr", deliberately_stubborn_drain)
+    started = time.monotonic()
+
+    try:
+        with pytest.raises(ReplayError) as captured:
+            run_command(
+                _command("inherited-pipes-after-eos", pid_path),
+                _detector(),
+                lambda _alert: None,
+            )
+
+        elapsed = time.monotonic() - started
+        assert captured.value.diagnostic == "post_end_of_stream_timeout"
+        assert elapsed >= 2.0
+        assert elapsed < 2.75
+        assert not _process_exists(_pid(pid_path))
+    finally:
+        release_drain.set()
+        if descendant_pid_path.exists():
+            _terminate_fixture_process(_pid(descendant_pid_path))
+        for thread in _stderr_threads():
+            thread.join(timeout=1.0)
+
+    assert _stderr_threads() == []
 
 
 def test_run_replay_resolves_exact_native_zeek_command(
