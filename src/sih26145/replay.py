@@ -146,9 +146,7 @@ def _wait_for_post_eos_stdout(
     with selectors.DefaultSelector() as selector:
         selector.register(stdout, selectors.EVENT_READ)
         remaining = _remaining_post_eos_time(deadline, tail)
-        events = selector.select(
-            max(0.0, remaining - STDERR_SHUTDOWN_RESERVE_SECONDS)
-        )
+        events = selector.select(max(0.0, remaining - STDERR_SHUTDOWN_RESERVE_SECONDS))
         if not events:
             raise ReplayError("post_end_of_stream_timeout", tail)
         post_eos_bytes = os.read(stdout.fileno(), MAX_LINE_BYTES + 1)
@@ -308,9 +306,7 @@ def run_replay(
     if not resolved_pcap.is_file():
         raise ReplayError("pcap_not_regular_file")
 
-    policy_resource = resources.files("sih26145").joinpath(
-        "zeek/emit_syn_attempts.zeek"
-    )
+    policy_resource = resources.files("sih26145").joinpath("zeek/emit_syn_attempts.zeek")
     with resources.as_file(policy_resource) as policy_path:
         command = (
             "zeek",

@@ -63,10 +63,7 @@ class PortScanDetector:
             return None
 
         last_alert_ts = self._last_alert_by_source.get(event.src_ip)
-        if (
-            last_alert_ts is not None
-            and event.ts - last_alert_ts < self.config.cooldown_seconds
-        ):
+        if last_alert_ts is not None and event.ts - last_alert_ts < self.config.cooldown_seconds:
             return None
 
         if (
@@ -103,15 +100,10 @@ class PortScanDetector:
         end = datetime.fromtimestamp(snapshot.end_ts, UTC)
         thresholds = ScanThresholdEvidence(
             minimum_attempts=self.config.minimum_attempts,
-            minimum_unique_destination_ports=(
-                self.config.minimum_unique_destination_ports
-            ),
+            minimum_unique_destination_ports=(self.config.minimum_unique_destination_ports),
             minimum_unique_destination_hosts=self.config.minimum_unique_destination_hosts,
         )
-        samples = [
-            DestinationSample(ip=ip, port=port)
-            for ip, port in snapshot.destination_samples
-        ]
+        samples = [DestinationSample(ip=ip, port=port) for ip, port in snapshot.destination_samples]
         evidence = PortScanEvidence(
             deduplicated_attempts=snapshot.attempts,
             unique_destination_hosts=snapshot.unique_hosts,
@@ -146,10 +138,8 @@ class PortScanDetector:
         )
         fanout_strength = min(
             max(
-                snapshot.unique_ports
-                / self.config.minimum_unique_destination_ports,
-                snapshot.unique_hosts
-                / self.config.minimum_unique_destination_hosts,
+                snapshot.unique_ports / self.config.minimum_unique_destination_ports,
+                snapshot.unique_hosts / self.config.minimum_unique_destination_hosts,
             )
             / 2,
             1.0,

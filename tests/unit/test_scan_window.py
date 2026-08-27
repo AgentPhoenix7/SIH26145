@@ -90,9 +90,7 @@ def test_expiry_decrements_all_unique_counters() -> None:
     window.observe(syn(ts=100.0, uid="a", dst_ip="198.51.100.20", dst_port=22))
     window.observe(syn(ts=101.0, uid="b", dst_ip="198.51.100.21", dst_port=23))
 
-    snapshot = window.observe(
-        syn(ts=110.5, uid="c", dst_ip="198.51.100.21", dst_port=23)
-    )
+    snapshot = window.observe(syn(ts=110.5, uid="c", dst_ip="198.51.100.21", dst_port=23))
 
     assert snapshot is not None
     assert snapshot.attempts == 2
@@ -115,9 +113,7 @@ def test_uid_is_retained_at_ttl_boundary_then_reusable_after_it() -> None:
 def test_ipv6_sources_and_destinations_are_supported() -> None:
     window = PortScanWindow(window_seconds=10.0)
 
-    snapshot = window.observe(
-        syn(ts=100.0, src_ip="2001:db8::10", dst_ip="2001:db8::20")
-    )
+    snapshot = window.observe(syn(ts=100.0, src_ip="2001:db8::10", dst_ip="2001:db8::20"))
 
     assert snapshot is not None
     assert str(snapshot.source_ip) == "2001:db8::10"
@@ -128,9 +124,7 @@ def test_destination_samples_sort_ipv4_before_ipv6_then_port() -> None:
     window = PortScanWindow(window_seconds=10.0)
     window.observe(syn(ts=100.0, uid="v6", dst_ip="2001:db8::20", dst_port=22))
     window.observe(syn(ts=101.0, uid="high", dst_ip="198.51.100.21", dst_port=22))
-    snapshot = window.observe(
-        syn(ts=102.0, uid="low", dst_ip="198.51.100.20", dst_port=443)
-    )
+    snapshot = window.observe(syn(ts=102.0, uid="low", dst_ip="198.51.100.20", dst_port=443))
 
     assert snapshot is not None
     assert [(str(ip), port) for ip, port in snapshot.destination_samples] == [

@@ -212,9 +212,7 @@ class PortScanWindow:
         state: _SourceState,
         end_ts: float,
     ) -> WindowSnapshot:
-        samples = tuple(
-            sorted(state.destination_endpoints, key=self._endpoint_sort_key)[:10]
-        )
+        samples = tuple(sorted(state.destination_endpoints, key=self._endpoint_sort_key)[:10])
         return WindowSnapshot(
             source_ip=source,
             start_ts=state.attempts[0].ts,

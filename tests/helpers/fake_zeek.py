@@ -111,9 +111,7 @@ def main() -> int:
         _write_stdout(_eos(0))
         return 7
     elif mode == "stderr-untrusted":
-        sys.stderr.buffer.write(
-            b"untrusted child stderr endpoint=203.0.113.244:443\n"
-        )
+        sys.stderr.buffer.write(b"untrusted child stderr endpoint=203.0.113.244:443\n")
         sys.stderr.buffer.flush()
         _write_stdout(_eos(0))
         return 7

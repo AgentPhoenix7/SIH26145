@@ -86,8 +86,7 @@ def test_generated_frames_have_valid_ipv4_and_tcp_checksums(tmp_path: Path) -> N
 def test_scenarios_record_exact_expected_outcomes(tmp_path: Path) -> None:
     pcap_paths = generate_all(tmp_path)
     manifests = {
-        path.stem: json.loads(path.with_suffix(".manifest.json").read_text())
-        for path in pcap_paths
+        path.stem: json.loads(path.with_suffix(".manifest.json").read_text()) for path in pcap_paths
     }
 
     assert set(manifests) == {

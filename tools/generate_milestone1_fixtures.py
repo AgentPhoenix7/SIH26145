@@ -70,10 +70,7 @@ def ethernet_ipv4_tcp_syn(packet: SynPacket) -> bytes:
         0,
     )
     pseudo_header = (
-        source_ip
-        + destination_ip
-        + b"\x00\x06"
-        + struct.pack("!H", len(tcp_without_checksum))
+        source_ip + destination_ip + b"\x00\x06" + struct.pack("!H", len(tcp_without_checksum))
     )
     tcp_checksum = internet_checksum(pseudo_header + tcp_without_checksum)
     tcp_header = struct.pack(

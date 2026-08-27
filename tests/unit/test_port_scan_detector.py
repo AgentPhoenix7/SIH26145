@@ -31,9 +31,7 @@ def test_vertical_scan_alerts_at_exact_threshold() -> None:
 def test_horizontal_scan_alerts_at_exact_threshold() -> None:
     detector = PortScanDetector(config=ScanConfig())
 
-    alerts = [
-        detector.process(event) for event in horizontal_events(attempts=20, hosts=15)
-    ]
+    alerts = [detector.process(event) for event in horizontal_events(attempts=20, hosts=15)]
     alert = next(item for item in alerts if item is not None)
 
     assert sum(item is not None for item in alerts) == 1
@@ -65,9 +63,7 @@ def test_sources_are_evaluated_independently() -> None:
     for index, (first, second) in enumerate(zip(first_source, second_source, strict=True)):
         interleaved.append(first.model_copy(update={"uid": f"first-{index}"}))
         interleaved.append(
-            second.model_copy(
-                update={"uid": f"second-{index}", "ts": second.ts + 0.125}
-            )
+            second.model_copy(update={"uid": f"second-{index}", "ts": second.ts + 0.125})
         )
     interleaved.sort(key=lambda event: event.ts)
 
@@ -201,9 +197,7 @@ def test_confidence_and_severity_are_deterministic(
     confidence: float,
     severity: Severity,
 ) -> None:
-    detector = PortScanDetector(
-        config=ScanConfig(window_seconds=20.0, cooldown_seconds=0.0)
-    )
+    detector = PortScanDetector(config=ScanConfig(window_seconds=20.0, cooldown_seconds=0.0))
     events = vertical_events(attempts=attempts, ports=ports, start_ts=100.0, step=0.25)
 
     alerts = [detector.process(event) for event in events]
@@ -217,9 +211,7 @@ def test_alert_contains_utc_trigger_time_and_ten_sorted_samples() -> None:
     detector = PortScanDetector(config=ScanConfig())
     events = vertical_events(attempts=20, ports=15, start_ts=1_700_000_000.0, step=0.25)
 
-    alert = next(
-        item for item in (detector.process(event) for event in events) if item is not None
-    )
+    alert = next(item for item in (detector.process(event) for event in events) if item is not None)
 
     assert alert.timestamp.tzinfo is UTC
     assert alert.timestamp.timestamp() == events[-1].ts

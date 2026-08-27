@@ -139,10 +139,8 @@ class PortScanEvidence(StrictModel):
         if attempts < thresholds.minimum_attempts:
             raise ValueError("attempt count does not reach recorded threshold")
         if (
-            self.unique_destination_ports
-            < thresholds.minimum_unique_destination_ports
-            and self.unique_destination_hosts
-            < thresholds.minimum_unique_destination_hosts
+            self.unique_destination_ports < thresholds.minimum_unique_destination_ports
+            and self.unique_destination_hosts < thresholds.minimum_unique_destination_hosts
         ):
             raise ValueError("fanout does not reach a recorded threshold")
         return self

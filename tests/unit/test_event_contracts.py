@@ -42,9 +42,7 @@ def test_parse_valid_syn_line() -> None:
 
 
 def test_parse_valid_ipv6_syn_line() -> None:
-    record = parse_stream_line(
-        json_line(syn_payload(src_ip="2001:db8::10", dst_ip="2001:db8::20"))
-    )
+    record = parse_stream_line(json_line(syn_payload(src_ip="2001:db8::10", dst_ip="2001:db8::20")))
 
     assert isinstance(record, TcpSynAttemptV1)
     assert str(record.src_ip) == "2001:db8::10"

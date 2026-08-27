@@ -45,9 +45,7 @@ def _process_exists(pid: int) -> bool:
 
 def _stderr_threads() -> list[threading.Thread]:
     return [
-        thread
-        for thread in threading.enumerate()
-        if thread.name.startswith("sih26145-stderr-")
+        thread for thread in threading.enumerate() if thread.name.startswith("sih26145-stderr-")
     ]
 
 
@@ -242,9 +240,7 @@ def test_untrusted_child_stderr_is_retained_but_not_echoed(
         )
 
     assert captured.value.diagnostic == "child_exit_nonzero"
-    assert captured.value.stderr_tail == (
-        b"untrusted child stderr endpoint=203.0.113.244:443\n"
-    )
+    assert captured.value.stderr_tail == (b"untrusted child stderr endpoint=203.0.113.244:443\n")
     assert capsys.readouterr().err == ""
     assert not _process_exists(_pid(pid_path))
     assert _stderr_threads() == []

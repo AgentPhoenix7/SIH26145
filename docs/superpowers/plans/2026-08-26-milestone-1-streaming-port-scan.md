@@ -86,15 +86,18 @@ def test_parse_valid_syn_line() -> None:
     assert isinstance(record, TcpSynAttemptV1)
     assert str(record.src_ip) == "192.0.2.10"
 
+
 @pytest.mark.parametrize("port", [-1, 65536, 1.5, "443", True])
 def test_syn_port_is_strict_and_bounded(port: object) -> None:
     with pytest.raises(StreamContractError):
         parse_stream_line(syn_json(dst_port=port) + b"\n")
 
+
 @pytest.mark.parametrize("raw", [b"\n", b"{bad}\n", b"\xff\n", b"{}", b"x" * 16384 + b"\n"])
 def test_invalid_or_unbounded_line_fails(raw: bytes) -> None:
     with pytest.raises(StreamContractError):
         parse_stream_line(raw)
+
 
 def test_nonempty_eos_requires_matching_last_timestamp_field() -> None:
     with pytest.raises(StreamContractError):
@@ -115,8 +118,10 @@ Expected: FAIL during collection because `sih26145.contracts.events` does not ex
 MAX_LINE_BYTES = 16_384
 MAX_CAPTURE_TS = 253_402_300_799.0
 
+
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
+
 
 class TcpSynAttemptV1(StrictModel):
     schema_version: Literal["tcp_syn_attempt_v1"]
@@ -129,11 +134,14 @@ class TcpSynAttemptV1(StrictModel):
     dst_port: Annotated[StrictInt, Field(ge=0, le=65535)]
     transport: Literal["tcp"]
 
+
 class EndOfStreamV1(StrictModel):
     schema_version: Literal["control_v1"]
     event_type: Literal["end_of_stream"]
     emitted_events: Annotated[StrictInt, Field(ge=0)]
-    last_event_ts: Annotated[float, Field(ge=0.0, le=MAX_CAPTURE_TS, allow_inf_nan=False)] | None = None
+    last_event_ts: (
+        Annotated[float, Field(ge=0.0, le=MAX_CAPTURE_TS, allow_inf_nan=False)] | None
+    ) = None
 
     @model_validator(mode="after")
     def validate_last_timestamp(self) -> Self:
@@ -183,6 +191,7 @@ def test_alert_v1_round_trips_with_typed_scan_evidence() -> None:
     assert '"schema_version":"alert_v1"' in encoded
     assert '"timestamp":"2026-08-26T15:00:00.123456Z"' in encoded
 
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [("confidence", -0.01), ("confidence", 1.01), ("flow_id", ""), ("protocol", "udp")],
@@ -192,6 +201,7 @@ def test_alert_rejects_invalid_common_values(field: str, value: object) -> None:
     payload[field] = value
     with pytest.raises(ValidationError):
         AlertV1.model_validate(payload)
+
 
 def test_alert_rejects_evidence_that_cannot_describe_its_window() -> None:
     payload = valid_alert_dict()
@@ -271,6 +281,7 @@ def test_exact_window_boundary_is_included_then_expires() -> None:
     after_boundary = window.observe(syn(ts=110.000001, uid="third"))
     assert after_boundary is not None and after_boundary.attempts == 2
 
+
 def test_uid_retransmission_does_not_change_state() -> None:
     window = PortScanWindow(window_seconds=10.0)
     first = window.observe(syn(ts=100.0, uid="same"))
@@ -278,6 +289,7 @@ def test_uid_retransmission_does_not_change_state() -> None:
     assert first is not None
     assert duplicate is None
     assert window.total_attempts == 1
+
 
 def test_timestamp_regression_fails_before_mutation() -> None:
     window = PortScanWindow(window_seconds=10.0)
@@ -312,6 +324,7 @@ class StateLimits:
     max_cooldown_sources: int = 4_096
     dedup_ttl_seconds: float = 60.0
 
+
 @dataclass(frozen=True, slots=True)
 class WindowSnapshot:
     source_ip: IPv4Address | IPv6Address
@@ -322,6 +335,7 @@ class WindowSnapshot:
     unique_ports: int
     unique_endpoints: int
     destination_samples: tuple[tuple[IPv4Address | IPv6Address, int], ...]
+
 
 class PortScanWindow:
     def observe(self, event: TcpSynAttemptV1) -> WindowSnapshot | None:
@@ -379,6 +393,7 @@ def test_vertical_scan_alerts_at_exact_threshold() -> None:
     assert alert.confidence == 0.75
     assert alert.severity is Severity.MEDIUM
 
+
 def test_below_both_fanout_thresholds_does_not_alert() -> None:
     detector = PortScanDetector(config=ScanConfig())
     assert all(detector.process(event) is None for event in vertical_events(attempts=20, ports=14))
@@ -405,6 +420,7 @@ class ScanConfig(StrictModel):
     minimum_unique_destination_ports: Annotated[StrictInt, Field(gt=0)] = 15
     minimum_unique_destination_hosts: Annotated[StrictInt, Field(gt=0)] = 15
     cooldown_seconds: Annotated[float, Field(ge=0.0, allow_inf_nan=False)] = 30.0
+
 
 class PortScanDetector:
     def process(self, event: TcpSynAttemptV1) -> AlertV1 | None:
@@ -465,6 +481,7 @@ def test_generation_is_byte_deterministic(tmp_path: Path) -> None:
     second = generate_all(tmp_path / "second")
     assert {p.name: p.read_bytes() for p in first} == {p.name: p.read_bytes() for p in second}
 
+
 def test_manifest_hash_matches_capture(tmp_path: Path) -> None:
     pcap_paths = generate_all(tmp_path)
     for pcap in pcap_paths:
@@ -492,9 +509,8 @@ def internet_checksum(data: bytes) -> int:
         total = (total & 0xFFFF) + (total >> 16)
     return (~total) & 0xFFFF
 
-PCAP_GLOBAL_HEADER = struct.pack(
-    "<IHHIIII", 0xA1B2C3D4, 2, 4, 0, 0, 65_535, 1
-)
+
+PCAP_GLOBAL_HEADER = struct.pack("<IHHIIII", 0xA1B2C3D4, 2, 4, 0, 0, 65_535, 1)
 ```
 
 Implement `ethernet_ipv4_tcp_syn(packet: SynPacket) -> bytes`, `write_pcap(path: Path, packets: Sequence[TimestampedPacket]) -> str`, and `generate_all(output: Path) -> list[Path]` using this checksum and header. `write_pcap` returns the SHA-256 of the exact bytes it writes; `generate_all` writes manifests from those returned digests.
@@ -645,6 +661,7 @@ class ReplayResult:
     events_processed: int
     alerts_emitted: int
     last_event_ts: float | None
+
 
 process = subprocess.Popen(
     list(command),
