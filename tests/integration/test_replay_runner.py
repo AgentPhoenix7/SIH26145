@@ -16,6 +16,7 @@ import sih26145.replay as replay
 from sih26145.contracts.alerts import AlertV1
 from sih26145.contracts.events import EndOfStreamV1, parse_stream_line
 from sih26145.detection.port_scan import PortScanDetector, ScanConfig
+from sih26145.detection.scan_window import StateLimitExceeded, StateLimits
 from sih26145.replay import ReplayError, ReplayResult, run_command, run_replay
 
 FAKE_ZEEK = Path("tests/helpers/fake_zeek.py").resolve()
@@ -91,8 +92,33 @@ def test_processes_events_and_emits_alert_before_accepting_eos(
     assert len(alert_output) == 1
     captured = capsys.readouterr()
     assert captured.out == ""
-    assert "fake child diagnostic" in captured.err
+    assert captured.err == ""
     assert "fake child diagnostic" not in alert_output[0]
+
+
+@pytest.mark.integration
+def test_state_limit_failure_keeps_its_named_invariant_and_reaps_child(
+    tmp_path: Path,
+) -> None:
+    pid_path = tmp_path / "pid"
+    detector = PortScanDetector(
+        config=ScanConfig(),
+        limits=StateLimits(
+            max_active_sources=2,
+            max_attempts_per_source=2,
+            max_total_attempts=4,
+            max_dedup_uids=4,
+            max_cooldown_sources=2,
+            dedup_ttl_seconds=60.0,
+        ),
+    )
+
+    with pytest.raises(StateLimitExceeded) as captured:
+        run_command(_command("happy", pid_path), detector, lambda _alert: None)
+
+    assert captured.value.limit_name == "max_attempts_per_source"
+    assert not _process_exists(_pid(pid_path))
+    assert _stderr_threads() == []
 
 
 @pytest.mark.integration
@@ -196,7 +222,30 @@ def test_stderr_is_drained_without_deadlock_and_retains_only_latest_64_kib(
     assert captured.value.diagnostic == "child_exit_nonzero"
     assert captured.value.stderr_tail == b"B" * 65_536
     assert len(captured.value.stderr_tail) == 65_536
-    assert len(capsys.readouterr().err.encode()) == 81_920
+    assert capsys.readouterr().err == ""
+    assert not _process_exists(_pid(pid_path))
+    assert _stderr_threads() == []
+
+
+@pytest.mark.integration
+def test_untrusted_child_stderr_is_retained_but_not_echoed(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    pid_path = tmp_path / "pid"
+
+    with pytest.raises(ReplayError) as captured:
+        run_command(
+            _command("stderr-untrusted", pid_path),
+            _detector(),
+            lambda _alert: None,
+        )
+
+    assert captured.value.diagnostic == "child_exit_nonzero"
+    assert captured.value.stderr_tail == (
+        b"untrusted child stderr endpoint=203.0.113.244:443\n"
+    )
+    assert capsys.readouterr().err == ""
     assert not _process_exists(_pid(pid_path))
     assert _stderr_threads() == []
 

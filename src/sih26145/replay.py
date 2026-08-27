@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 import selectors
 import subprocess
-import sys
 import tempfile
 import threading
 import time
@@ -25,7 +24,7 @@ from sih26145.contracts.events import (
     parse_stream_line,
 )
 from sih26145.detection.port_scan import PortScanDetector
-from sih26145.detection.scan_window import TimestampRegressionError
+from sih26145.detection.scan_window import StateLimitExceeded, TimestampRegressionError
 
 STDERR_TAIL_BYTES = 65_536
 PROCESS_WAIT_SECONDS = 2.0
@@ -99,8 +98,6 @@ def _drain_stderr(
                 if not chunk:
                     return
                 tail.append(chunk)
-                sys.stderr.write(chunk.decode("utf-8", errors="replace"))
-                sys.stderr.flush()
     except (OSError, ValueError):
         return
 
@@ -240,6 +237,8 @@ def run_command(
                     alert = detector.process(record)
                 except TimestampRegressionError:
                     raise ReplayError("timestamp_regression", stderr_tail) from None
+                except StateLimitExceeded:
+                    raise
                 except Exception:
                     raise ReplayError("event_processing_failed", stderr_tail) from None
 
