@@ -1,0 +1,51 @@
+{
+  "capture_sha256": "ae3c411f2855198e3e7be195b8cdc12020b00ebca86b88b134008a1e31db5755",
+  "endpoints": {
+    "destination_ips": [
+      "198.51.100.20",
+      "198.51.100.21",
+      "198.51.100.22",
+      "198.51.100.23",
+      "198.51.100.24",
+      "198.51.100.25",
+      "198.51.100.26",
+      "198.51.100.27",
+      "198.51.100.28",
+      "198.51.100.29",
+      "198.51.100.30",
+      "198.51.100.31",
+      "198.51.100.32",
+      "198.51.100.33",
+      "198.51.100.34"
+    ],
+    "destination_ports": [
+      20
+    ],
+    "source_ips": [
+      "192.0.2.10"
+    ]
+  },
+  "expected_alert_count": 1,
+  "generator": "tools/generate_milestone1_fixtures.py",
+  "generator_version": "1.0.0",
+  "label": "PORT_SCAN_HORIZONTAL",
+  "packet_count": 20,
+  "parameters": {
+    "attempts": 20,
+    "unique_destination_hosts": 15,
+    "unique_destination_ports": 1
+  },
+  "provenance": {
+    "address_standards": [
+      "RFC 5737"
+    ],
+    "kind": "locally_generated_documentation_ranges",
+    "network_activity": "none"
+  },
+  "scenario_id": "horizontal_at_threshold",
+  "schema_version": "fixture_manifest_v1",
+  "timestamp_range": {
+    "end": "2023-11-14T22:13:24.750000Z",
+    "start": "2023-11-14T22:13:20.000000Z"
+  }
+}
