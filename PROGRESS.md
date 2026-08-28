@@ -37,9 +37,10 @@ This milestone covers exactly one of the six required threat classes: reconnaiss
 - Alert-span precision fix: `c8da88a` (`fix: normalize port scan alert spans`)
 - Configuration/state consistency fix: `6727d65` (`fix: validate scan config against state limits`)
 - Timestamp/cooldown precision fix: `01b3645` (`fix: align scan duration precision`)
-- This cooldown-capacity atomicity correction is recorded by the commit containing this file, whose predecessor is `01b3645`.
+- Cooldown-capacity atomicity fix: `37ca272` (`fix: rollback rejected scan observations`)
+- This pre-EOS inactivity correction is recorded by the commit containing this file, whose predecessor is `37ca272`.
 
-The implementation history is intentionally sliced: contracts (`dd01d7f`, `78284b7`), bounded window and detector (`43fd8f1`, `e572485`), fixtures (`13a2512`), Zeek streaming policy (`8900707`), replay runner and deadline hardening (`2a41b6b`, `6871624`, `2bb8b0b`, `af96c9e`), CLI/safe diagnostics (`c5371b2`, `3ca426c`), and review-driven scan consistency fixes (`c8da88a`, `6727d65`, `01b3645`, plus the commit containing this file). Inspect live status and commits before continuing because this snapshot can become stale.
+The implementation history is intentionally sliced: contracts (`dd01d7f`, `78284b7`), bounded window and detector (`43fd8f1`, `e572485`), fixtures (`13a2512`), Zeek streaming policy (`8900707`), replay runner and deadline hardening (`2a41b6b`, `6871624`, `2bb8b0b`, `af96c9e`, plus the commit containing this file), CLI/safe diagnostics (`c5371b2`, `3ca426c`), and review-driven scan consistency fixes (`c8da88a`, `6727d65`, `01b3645`, `37ca272`). Inspect live status and commits before continuing because this snapshot can become stale.
 
 ## Verified Environment and Artifacts
 
@@ -65,7 +66,7 @@ The public native command is `zeek -D -b -r <pcap> <policy>`. `-D` makes identic
 - A native Zeek policy emits and flushes one originator-SYN JSON record at a time followed by exactly one consistent EOS record.
 - Python validates and processes each event before reading the next record; a threshold alert callback precedes EOS.
 - The capture-time scan window deduplicates Zeek UIDs, tracks attempts/hosts/ports/endpoints, expires old state, and rejects timestamp regression before mutation.
-- Hard limits cover line length, active sources, per-source and global attempts, retained UIDs, cooldown sources, stderr retention, and child process shutdown. Pre-EOS failure cleanup has a two-second terminate-to-kill grace; after EOS, child exit, pipe completion, drainer shutdown, and direct-child cleanup share one absolute two-second deadline with no fresh cleanup budget.
+- Hard limits cover line length, pre-EOS record inactivity, active sources, per-source and global attempts, retained UIDs, cooldown sources, stderr retention, and child process shutdown. A partial or absent next record fails after two seconds without stdout progress and then uses the pre-EOS two-second terminate-to-kill cleanup grace; after EOS, child exit, pipe completion, drainer shutdown, and direct-child cleanup share one absolute two-second deadline with no fresh cleanup budget.
 - The detector uses configurable attempt/fan-out thresholds, exact-boundary expiry and cooldown semantics, deterministic endpoint samples, and typed measured evidence. Cooldown suppression and expiry compare elapsed time directly, preserving positive cooldowns even when adding them to a large epoch timestamp would round them away.
 - A threshold event rejected by the cooldown-source capacity limit is rolled back from rolling attempts, fan-out counters, and UID deduplication state before the named failure propagates, so catching and retrying the event cannot silently lose its alert.
 - Detector construction rejects windows that can overflow derived rates, thresholds above effective state capacity, and windows longer than the UID deduplication TTL; the CLI reports these as invalid configuration before Zeek starts.
@@ -194,6 +195,21 @@ UV_CACHE_DIR=/tmp/sih26145-p2c-uv-cache uv run sih26145-replay tests/fixtures/mi
 ```
 
 The retry regression was observed failing before the rollback and passing afterward: with a 10-second scan window, 30-second cooldown, and one cooldown-source slot, a new threshold event at `111.0` is rejected while the prior source's attempt has expired but its cooldown remains. Retrying that identical event now raises the same named `max_cooldown_sources` limit instead of returning `None` as a retained-UID duplicate. The full suite reported `188 passed`; Ruff lint and format, strict mypy, deterministic fixture checks, native threshold replay, and native benign replay passed. Actual scan output contained one schema-valid alert with a `4.75`-second observed span, while benign output was zero bytes.
+
+Additional P2 pre-EOS inactivity evidence on 2026-08-28:
+
+```bash
+UV_CACHE_DIR=/tmp/sih26145-p2d-uv-cache uv sync --frozen --group dev
+UV_CACHE_DIR=/tmp/sih26145-p2d-uv-cache uv run pytest
+UV_CACHE_DIR=/tmp/sih26145-p2d-uv-cache uv run ruff check .
+UV_CACHE_DIR=/tmp/sih26145-p2d-uv-cache uv run ruff format --check .
+UV_CACHE_DIR=/tmp/sih26145-p2d-uv-cache uv run mypy src tests tools
+UV_CACHE_DIR=/tmp/sih26145-p2d-uv-cache uv run python tools/generate_milestone1_fixtures.py --output tests/fixtures/milestone1 --check
+UV_CACHE_DIR=/tmp/sih26145-p2d-uv-cache uv run sih26145-replay tests/fixtures/milestone1/vertical_at_threshold.pcap > /tmp/sih26145-p2d-scan-alerts.jsonl
+UV_CACHE_DIR=/tmp/sih26145-p2d-uv-cache uv run sih26145-replay tests/fixtures/milestone1/benign.pcap > /tmp/sih26145-p2d-benign-alerts.jsonl
+```
+
+The real-child partial-line regression was observed remaining blocked before the fix and completing with `pre_end_of_stream_timeout` afterward. The test verifies that the direct child is terminated and reaped and that no stderr-drainer thread remains. The full suite reported `189 passed`; Ruff lint and format, strict mypy, deterministic fixture checks, native threshold replay, and native benign replay passed. Actual scan output contained one schema-valid alert with a `4.75`-second observed span, while benign output was zero bytes. Detector/end-to-end wall-time percentiles remain unmeasured.
 
 ## Current SIH26145 Compliance Snapshot
 

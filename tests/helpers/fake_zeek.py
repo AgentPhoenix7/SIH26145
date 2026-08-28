@@ -104,6 +104,10 @@ def main() -> int:
         sys.stdout.buffer.write(b"not-json\n")
         sys.stdout.buffer.flush()
         _hang()
+    elif mode == "partial-line-hang":
+        sys.stdout.buffer.write(b'{"schema_version":"tcp_syn_attempt_v1"')
+        sys.stdout.buffer.flush()
+        _hang()
     elif mode == "stderr-flood":
         sys.stderr.buffer.write(b"A" * 16_384)
         sys.stderr.buffer.write(b"B" * 65_536)

@@ -212,6 +212,44 @@ def test_failed_child_that_ignores_sigterm_is_killed_and_reaped(tmp_path: Path) 
 
 
 @pytest.mark.integration
+def test_partial_pre_eos_record_times_out_and_reaps_child(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pid_path = tmp_path / "pid"
+    captured: list[BaseException] = []
+    monkeypatch.setattr(replay, "PROCESS_WAIT_SECONDS", 0.5)
+
+    def invoke_replay() -> None:
+        try:
+            run_command(
+                _command("partial-line-hang", pid_path),
+                _detector(),
+                lambda _alert: None,
+            )
+        except BaseException as exc:
+            captured.append(exc)
+
+    thread = threading.Thread(target=invoke_replay, daemon=True)
+    thread.start()
+    thread.join(timeout=1.5)
+    completed_within_bound = not thread.is_alive()
+
+    try:
+        assert completed_within_bound, "replay remained blocked on a partial pre-EOS record"
+    finally:
+        if thread.is_alive() and pid_path.exists():
+            _terminate_fixture_process(_pid(pid_path))
+        thread.join(timeout=1.0)
+
+    assert len(captured) == 1
+    assert isinstance(captured[0], ReplayError)
+    assert captured[0].diagnostic == "pre_end_of_stream_timeout"
+    assert not _process_exists(_pid(pid_path))
+    assert _stderr_threads() == []
+
+
+@pytest.mark.integration
 def test_stderr_is_drained_without_deadlock_and_retains_only_latest_64_kib(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],

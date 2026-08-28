@@ -102,15 +102,43 @@ def _drain_stderr(
         return
 
 
-def _read_bounded_line(stdout: BinaryIO, tail: _StderrTail) -> bytes | None:
-    raw = stdout.readline(MAX_LINE_BYTES + 1)
-    if raw == b"":
-        return None
-    if raw == b"\n":
-        raise ReplayError("blank_stream_line", tail)
-    if len(raw) > MAX_LINE_BYTES:
-        raise ReplayError("stream_line_too_long", tail)
-    return raw
+def _read_bounded_line(
+    stdout: BinaryIO,
+    buffered_stdout: bytearray,
+    tail: _StderrTail,
+) -> bytes | None:
+    inactivity_deadline = time.monotonic() + PROCESS_WAIT_SECONDS
+    with selectors.DefaultSelector() as selector:
+        selector.register(stdout, selectors.EVENT_READ)
+        while True:
+            newline_index = buffered_stdout.find(b"\n")
+            if newline_index >= 0:
+                line_end = newline_index + 1
+                raw = bytes(buffered_stdout[:line_end])
+                del buffered_stdout[:line_end]
+                if raw == b"\n":
+                    raise ReplayError("blank_stream_line", tail)
+                if len(raw) > MAX_LINE_BYTES:
+                    raise ReplayError("stream_line_too_long", tail)
+                return raw
+
+            if len(buffered_stdout) > MAX_LINE_BYTES:
+                raise ReplayError("stream_line_too_long", tail)
+
+            remaining = inactivity_deadline - time.monotonic()
+            if remaining <= 0.0 or not selector.select(remaining):
+                raise ReplayError("pre_end_of_stream_timeout", tail)
+
+            chunk = os.read(stdout.fileno(), MAX_LINE_BYTES + 1)
+            if not chunk:
+                if not buffered_stdout:
+                    return None
+                raw = bytes(buffered_stdout)
+                buffered_stdout.clear()
+                return raw
+
+            buffered_stdout.extend(chunk)
+            inactivity_deadline = time.monotonic() + PROCESS_WAIT_SECONDS
 
 
 def _parse_record(raw: bytes, tail: _StderrTail) -> TcpSynAttemptV1 | EndOfStreamV1:
@@ -140,9 +168,12 @@ def _remaining_post_eos_time(deadline: float, tail: _StderrTail) -> float:
 
 def _wait_for_post_eos_stdout(
     stdout: BinaryIO,
+    buffered_stdout: bytearray,
     deadline: float,
     tail: _StderrTail,
 ) -> None:
+    if buffered_stdout:
+        raise ReplayError(_after_eos_diagnostic(bytes(buffered_stdout)), tail)
     with selectors.DefaultSelector() as selector:
         selector.register(stdout, selectors.EVENT_READ)
         remaining = _remaining_post_eos_time(deadline, tail)
@@ -230,9 +261,10 @@ def run_command(
             events_processed = 0
             alerts_emitted = 0
             last_event_ts: float | None = None
+            buffered_stdout = bytearray()
 
             while True:
-                raw = _read_bounded_line(stdout, stderr_tail)
+                raw = _read_bounded_line(stdout, buffered_stdout, stderr_tail)
                 if raw is None:
                     raise ReplayError("missing_end_of_stream", stderr_tail)
                 record = _parse_record(raw, stderr_tail)
@@ -271,7 +303,12 @@ def run_command(
             except subprocess.TimeoutExpired:
                 raise ReplayError("post_end_of_stream_timeout", stderr_tail) from None
 
-            _wait_for_post_eos_stdout(stdout, post_eos_deadline, stderr_tail)
+            _wait_for_post_eos_stdout(
+                stdout,
+                buffered_stdout,
+                post_eos_deadline,
+                stderr_tail,
+            )
             _join_stderr_before_deadline(
                 stderr_thread,
                 post_eos_deadline,
