@@ -34,9 +34,11 @@ This milestone covers exactly one of the six required threat classes: reconnaiss
 - Required Task 9 formatter-only cleanup: `1be64d9` (`style: apply Ruff formatting`)
 - Milestone 1 documentation baseline: `1eacfaa` (`docs: record milestone one verification`)
 - Post-review lifecycle fix: `af96c9e` (`fix: enforce post-eos cleanup deadline`)
-- This evidence refresh is recorded by the commit containing this file, whose predecessor is `af96c9e`.
+- Alert-span precision fix: `c8da88a` (`fix: normalize port scan alert spans`)
+- Configuration/state consistency fix: `6727d65` (`fix: validate scan config against state limits`)
+- This precision evidence refresh is recorded by the commit containing this file, whose predecessor is `6727d65`.
 
-The implementation history is intentionally sliced: contracts (`dd01d7f`, `78284b7`), bounded window and detector (`43fd8f1`, `e572485`), fixtures (`13a2512`), Zeek streaming policy (`8900707`), replay runner and deadline hardening (`2a41b6b`, `6871624`, `2bb8b0b`, `af96c9e`), and CLI/safe diagnostics (`c5371b2`, `3ca426c`). Inspect live status and commits before continuing because this snapshot can become stale.
+The implementation history is intentionally sliced: contracts (`dd01d7f`, `78284b7`), bounded window and detector (`43fd8f1`, `e572485`), fixtures (`13a2512`), Zeek streaming policy (`8900707`), replay runner and deadline hardening (`2a41b6b`, `6871624`, `2bb8b0b`, `af96c9e`), CLI/safe diagnostics (`c5371b2`, `3ca426c`), and review-driven scan consistency fixes (`c8da88a`, `6727d65`, plus the commit containing this file). Inspect live status and commits before continuing because this snapshot can become stale.
 
 ## Verified Environment and Artifacts
 
@@ -63,9 +65,9 @@ The public native command is `zeek -D -b -r <pcap> <policy>`. `-D` makes identic
 - Python validates and processes each event before reading the next record; a threshold alert callback precedes EOS.
 - The capture-time scan window deduplicates Zeek UIDs, tracks attempts/hosts/ports/endpoints, expires old state, and rejects timestamp regression before mutation.
 - Hard limits cover line length, active sources, per-source and global attempts, retained UIDs, cooldown sources, stderr retention, and child process shutdown. Pre-EOS failure cleanup has a two-second terminate-to-kill grace; after EOS, child exit, pipe completion, drainer shutdown, and direct-child cleanup share one absolute two-second deadline with no fresh cleanup budget.
-- The detector uses configurable attempt/fan-out thresholds, exact-boundary expiry and cooldown semantics, deterministic endpoint samples, and typed measured evidence.
+- The detector uses configurable attempt/fan-out thresholds, exact-boundary expiry and cooldown semantics, deterministic endpoint samples, and typed measured evidence. Cooldown suppression and expiry compare elapsed time directly, preserving positive cooldowns even when adding them to a large epoch timestamp would round them away.
 - Detector construction rejects windows that can overflow derived rates, thresholds above effective state capacity, and windows longer than the UID deduplication TTL; the CLI reports these as invalid configuration before Zeek starts.
-- Alert span evidence is derived from the same microsecond-normalized UTC timestamps as `AlertWindow`, preventing ordinary large-epoch float subtraction error from discarding a threshold alert during strict schema validation.
+- Detector construction normalizes the effective scan window to microsecond precision before membership, rate calculation, alert reporting, and duration validation. Alert span evidence is derived from the same microsecond-normalized UTC timestamps as `AlertWindow`, preventing ordinary large-epoch float or configuration precision differences from discarding a threshold alert during strict schema validation.
 - The CLI emits canonical alert JSON only on stdout; child stderr is privately retained only as the byte-exact latest 64 KiB and is never echoed. CLI stderr contains only trusted safe diagnostics.
 - CLI status is `0` for success, `2` for invalid configuration/path, and `1` for runtime/process/contract/timestamp/callback/state-limit failure.
 - Deterministic offline PCAP generation uses documentation-only IPv4 ranges and records scenario parameters, expected outcomes, packet counts, SHA-256, and provenance in manifests.
@@ -159,6 +161,22 @@ UV_CACHE_DIR=/tmp/sih26145-p2-uv-cache uv run sih26145-replay tests/fixtures/mil
 ```
 
 The rate-overflow, unreachable-threshold, and short-UID-retention cases were each observed failing before their constructor checks were added. The full suite reported `185 passed`; all three invalid CLI examples exited `2` with the fixed configuration diagnostic before replay; Ruff, strict mypy, fixture checks, native threshold replay, and native benign replay passed.
+
+Additional P2 timestamp-precision evidence on 2026-08-28:
+
+```bash
+UV_CACHE_DIR=/tmp/sih26145-p2b-uv-cache uv sync --frozen --group dev
+UV_CACHE_DIR=/tmp/sih26145-p2b-uv-cache uv run pytest
+UV_CACHE_DIR=/tmp/sih26145-p2b-uv-cache uv run ruff check .
+UV_CACHE_DIR=/tmp/sih26145-p2b-uv-cache uv run ruff format --check .
+UV_CACHE_DIR=/tmp/sih26145-p2b-uv-cache uv run mypy src tests tools
+UV_CACHE_DIR=/tmp/sih26145-p2b-uv-cache uv run python tools/generate_milestone1_fixtures.py --output tests/fixtures/milestone1 --check
+UV_CACHE_DIR=/tmp/sih26145-p2b-uv-cache uv run sih26145-replay tests/fixtures/milestone1/vertical_at_threshold.pcap > /tmp/sih26145-p2b-scan-alerts.jsonl
+UV_CACHE_DIR=/tmp/sih26145-p2b-uv-cache uv run sih26145-replay tests/fixtures/milestone1/benign.pcap > /tmp/sih26145-p2b-benign-alerts.jsonl
+UV_CACHE_DIR=/tmp/sih26145-p2b-uv-cache uv run python -c 'from pathlib import Path; from sih26145.contracts.alerts import AlertV1; lines=Path("/tmp/sih26145-p2b-scan-alerts.jsonl").read_text().splitlines(); assert len(lines)==1; alert=AlertV1.model_validate_json(lines[0]); assert alert.evidence.observed_span_seconds==4.75; assert Path("/tmp/sih26145-p2b-benign-alerts.jsonl").read_bytes()==b""'
+```
+
+Both new focused regressions were observed failing before their fixes and passing after them: a `0.09999995`-second window now becomes one effective `0.1`-second window for state, rate, and alert validation, and a positive `1e-8`-second cooldown suppresses a same-timestamp event near epoch `1700000000.0`. The full suite reported `187 passed`; Ruff lint and format, strict mypy, deterministic fixture checks, native threshold replay, and native benign replay passed. The actual scan output contained one schema-valid alert with a `4.75`-second observed span, while benign output was zero bytes.
 
 ## Current SIH26145 Compliance Snapshot
 

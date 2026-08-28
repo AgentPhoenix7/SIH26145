@@ -44,12 +44,15 @@ class PortScanDetector:
 
     def __init__(self, *, config: ScanConfig, limits: StateLimits | None = None) -> None:
         effective_limits = limits if limits is not None else StateLimits()
+        effective_window_seconds = round(config.window_seconds, 6)
         max_source_attempts = min(
             effective_limits.max_attempts_per_source,
             effective_limits.max_total_attempts,
             effective_limits.max_dedup_uids,
         )
-        if not math.isfinite(max_source_attempts / config.window_seconds):
+        if effective_window_seconds <= 0 or not math.isfinite(
+            max_source_attempts / effective_window_seconds
+        ):
             raise ValueError("window_seconds is too small for a finite attempt rate")
         thresholds = (
             config.minimum_attempts,
@@ -58,13 +61,13 @@ class PortScanDetector:
         )
         if any(threshold > max_source_attempts for threshold in thresholds):
             raise ValueError("scan threshold exceeds effective state capacity")
-        if config.window_seconds > effective_limits.dedup_ttl_seconds:
+        if effective_window_seconds > effective_limits.dedup_ttl_seconds:
             raise ValueError("window_seconds exceeds the UID deduplication TTL")
 
-        self.config = config
+        self.config = config.model_copy(update={"window_seconds": effective_window_seconds})
         self.limits = effective_limits
         self._window = PortScanWindow(
-            window_seconds=config.window_seconds,
+            window_seconds=self.config.window_seconds,
             limits=self.limits,
         )
         self._last_alert_by_source: OrderedDict[IPAddress, float] = OrderedDict()
@@ -98,7 +101,7 @@ class PortScanDetector:
     def _expire_cooldowns(self, watermark: float) -> None:
         while self._last_alert_by_source:
             _, last_alert_ts = next(iter(self._last_alert_by_source.items()))
-            if last_alert_ts + self.config.cooldown_seconds > watermark:
+            if watermark - last_alert_ts < self.config.cooldown_seconds:
                 return
             self._last_alert_by_source.popitem(last=False)
 

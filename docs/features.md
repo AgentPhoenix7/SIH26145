@@ -24,7 +24,7 @@ The following values form the typed `alert_v1` port-scan evidence. All values de
 | Unique destination hosts | Cardinality of destination IP addresses among active attempts. | Integer from `0` to attempts |
 | Unique destination ports | Cardinality of destination TCP ports among active attempts. | Integer from `0` to attempts |
 | Unique destination endpoints | Cardinality of `(destination IP, destination port)` pairs among active attempts. | Integer from `0` to attempts; at least the host and port cardinalities |
-| Fixed-window attempt rate | `deduplicated_attempts / configured_window_seconds`. It is deliberately not divided by observed span. | Attempts per configured second; finite and non-negative |
+| Fixed-window attempt rate | `deduplicated_attempts / effective_configured_window_seconds`. The effective window is the configured value normalized to microsecond precision; the rate is deliberately not divided by observed span. | Attempts per configured second; finite and non-negative |
 | Observed span | Difference between the microsecond-normalized UTC timestamps used as the alert window end and start. | Capture-time seconds from `0` through the configured window; consistent with serialized `alert_v1` timestamps |
 | Destination samples | First 10 unique endpoints in deterministic IPv4-before-IPv6, numeric-IP, then port order. | At most 10 unique endpoint records |
 
@@ -46,9 +46,9 @@ The watermark is the greatest accepted capture timestamp; allowed lateness is ze
 
 For a 10-second window at watermark `t`, attempts with timestamps lower than `t - 10` expire. An attempt exactly at `t - 10` remains included and expires only when the watermark advances beyond that boundary. UID deduplication similarly retains a UID at exactly its 60-second TTL boundary and permits reuse only after the boundary.
 
-Configuration validation keeps these features internally achievable and finite. The scan window cannot exceed the UID TTL, every attempt/fan-out threshold must fit within the effective attempt capacity, and the maximum capacity divided by the window must be finite. Under default limits, the effective capacity is 4,096 attempts and the maximum window is 60 seconds.
+Configuration validation keeps these features internally achievable and finite. The effective scan window is normalized to six decimal places so state membership, fixed-window rate, serialized alert duration, and duration validation share the alert timestamp precision. A positive configured value that normalizes to zero is invalid. The effective window cannot exceed the UID TTL, every attempt/fan-out threshold must fit within the effective attempt capacity, and the maximum capacity divided by the window must be finite. Under default limits, the effective capacity is 4,096 attempts and the maximum window is 60 seconds.
 
-Cooldown is capture-time based and source scoped. A source is suppressed while `event_ts - last_alert_ts < cooldown_seconds`; it may alert again exactly at the configured boundary. Cooldown entries expire and are hard-limited to 4,096. The other code-owned limits are 4,096 active sources, 4,096 attempts per source, 100,000 attempts overall, and 200,000 retained UIDs. An event that would exceed a limit fails with the named invariant and does not silently evict or partially insert evidence.
+Cooldown is capture-time based and source scoped. Suppression and expiry compare `event_ts - last_alert_ts` directly with `cooldown_seconds`, so even a positive cooldown smaller than a large epoch timestamp's floating-point ULP remains effective. A source is suppressed below the cooldown and may alert again exactly at the configured boundary. Cooldown entries expire and are hard-limited to 4,096. The other code-owned limits are 4,096 active sources, 4,096 attempts per source, 100,000 attempts overall, and 200,000 retained UIDs. An event that would exceed a limit fails with the named invariant and does not silently evict or partially insert evidence.
 
 ## Confidence and Severity
 

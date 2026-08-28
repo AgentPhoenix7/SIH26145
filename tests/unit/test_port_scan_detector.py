@@ -185,6 +185,25 @@ def test_cooldown_suppresses_then_realerts_at_exact_boundary() -> None:
     assert second.flow_id == "d"
 
 
+def test_positive_sub_ulp_cooldown_suppresses_same_timestamp_alert() -> None:
+    detector = PortScanDetector(
+        config=ScanConfig(
+            window_seconds=1.0,
+            minimum_attempts=1,
+            minimum_unique_destination_ports=1,
+            minimum_unique_destination_hosts=1,
+            cooldown_seconds=1e-8,
+        )
+    )
+
+    first = detector.process(syn(ts=1_700_000_000.0, uid="first", dst_port=22))
+    second = detector.process(syn(ts=1_700_000_000.0, uid="second", dst_port=23))
+
+    assert first is not None
+    assert second is None
+    assert detector.cooldown_entries == 1
+
+
 def test_cooldown_state_expires_on_later_accepted_event() -> None:
     detector = PortScanDetector(
         config=ScanConfig(
@@ -283,3 +302,22 @@ def test_alert_span_uses_normalized_capture_timestamps() -> None:
 
     assert alert is not None
     assert alert.evidence.observed_span_seconds == 0.000001
+
+
+def test_alert_normalizes_configured_window_to_timestamp_precision() -> None:
+    detector = PortScanDetector(
+        config=ScanConfig(
+            window_seconds=0.09999995,
+            minimum_attempts=2,
+            minimum_unique_destination_ports=2,
+            minimum_unique_destination_hosts=2,
+        )
+    )
+
+    assert detector.process(syn(ts=1_700_000_000.0, uid="first", dst_port=22)) is None
+    alert = detector.process(syn(ts=1_700_000_000.1, uid="trigger", dst_port=23))
+
+    assert alert is not None
+    assert alert.window.configured_seconds == 0.1
+    assert alert.evidence.observed_span_seconds == 0.1
+    assert alert.evidence.attempt_rate_per_second == 20.0
