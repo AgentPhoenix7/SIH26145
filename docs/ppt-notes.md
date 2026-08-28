@@ -1,6 +1,6 @@
 # PPT Evidence Notes
 
-Last verified: **2026-08-27 (UTC)**
+Last verified: **2026-08-28 (UTC)**
 
 These are presentation-ready facts for Milestone 1. No screenshot, performance measurement, model metric, or dashboard is claimed here.
 

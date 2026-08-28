@@ -1,6 +1,6 @@
 # Versioned Features
 
-Last verified: **2026-08-27 (UTC)**
+Last verified: **2026-08-28 (UTC)**
 
 ## Scope and Observability
 

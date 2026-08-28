@@ -4,7 +4,7 @@ Status: **implemented and verified for Milestone 1 port-scan replay**
 
 Designed: **2026-08-26**
 
-Last verified: **2026-08-27**
+Last verified: **2026-08-28**
 
 ## Objective
 
@@ -307,4 +307,4 @@ Known limitations of this slice are explicit:
 - Zeek UID deduplication handles TCP SYN retransmissions within one Zeek run; it is not a durable identity across separate replays.
 - No throughput or latency claim exists until measured on the documented hardware.
 
-The user approved this design and the detailed plan at `docs/superpowers/plans/2026-08-26-milestone-1-streaming-port-scan.md` on 2026-08-26. The implementation was completed test-first in the isolated `feature/milestone-1-port-scan` worktree and verified on 2026-08-27 with native Zeek replay, focused tests, Ruff, mypy, deterministic-fixture checking, and actual alert-schema validation.
+The user approved this design and the detailed plan at `docs/superpowers/plans/2026-08-26-milestone-1-streaming-port-scan.md` on 2026-08-26. The implementation was completed test-first in the isolated `feature/milestone-1-port-scan` worktree and verified on 2026-08-28 with native Zeek replay, focused tests, Ruff, mypy, deterministic-fixture checking, and actual alert-schema validation.

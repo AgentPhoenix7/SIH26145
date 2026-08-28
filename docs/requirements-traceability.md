@@ -1,6 +1,6 @@
 # SIH26145 Requirements Traceability
 
-Last verified: **2026-08-27 (UTC)**
+Last verified: **2026-08-28 (UTC)**
 
 Status vocabulary is restricted to `PLANNED`, `IN PROGRESS`, `IMPLEMENTED`, `VERIFIED`, and `DEFERRED`. `VERIFIED` below means current command or inspection evidence exists for the precise row; it does not imply the entire official solution is complete.
 
@@ -13,7 +13,7 @@ Status vocabulary is restricted to `PLANNED`, `IN PROGRESS`, `IMPLEMENTED`, `VER
 | No payload decryption | Scan detection must depend only on observable SYN metadata. | `tcp_syn_attempt_v1` contains timestamp, UID, endpoints, ports, and transport; the verified path has no payload or decryption component. | VERIFIED |
 | Streaming, not whole-file batch reporting | An alert must be delivered before the Zeek EOS record is accepted. | `test_native_scan_replay_emits_exact_deterministic_evidence_before_eos` passes; direct evidence recorded `order=alert,end_of_stream`. | VERIFIED |
 | Bounded alert latency | Operational alerting must have a stated and measured bound. | Incremental callback and flush are implemented, but wall-clock detector/end-to-end latency and P50/P95/P99 are not measured. | PLANNED |
-| Bounded and safe state | Windows, deduplication, cooldown, input lines, and child pipes require explicit limits and failure behavior. | Focused unit/integration tests cover named limits, expiry, exact boundaries, private 64-KiB stderr tail, and the shared post-EOS deadline. | VERIFIED |
+| Bounded and safe state | Windows, deduplication, cooldown, input lines, and child pipes require explicit limits and failure behavior. | Focused unit/integration tests cover named limits, expiry, exact boundaries, the private 64-KiB stderr tail, pre-EOS terminate-to-kill grace, and one absolute post-EOS deadline with no fresh cleanup budget. | VERIFIED |
 | Standardized alert schema | Alert includes timestamp, flow ID, class, confidence, and supporting evidence. | One actual CLI line validates as strict `alert_v1` and includes detector, source, protocol, severity, window, and typed scan evidence. | VERIFIED |
 | Defined and demonstrated throughput target | State sustained traffic rate and methodology. | No throughput, CPU, memory, or latency benchmark has been run. | PLANNED |
 | Working ingest, feature extraction, model inference, and alert prototype | Full prototype must include a genuine deployed model. | Ingest, scan features, heuristic detection, and alert output work; genuine ML training/export/offline inference remains absent. | IN PROGRESS |
@@ -50,4 +50,4 @@ uv run sih26145-replay tests/fixtures/milestone1/benign.pcap > /tmp/sih26145-ben
 uv run python -c 'from pathlib import Path; from sih26145.contracts.alerts import AlertV1; lines=Path("/tmp/sih26145-scan-alerts.jsonl").read_text().splitlines(); assert len(lines)==1; AlertV1.model_validate_json(lines[0]); assert Path("/tmp/sih26145-benign-alerts.jsonl").read_bytes()==b""'
 ```
 
-Fresh 2026-08-27 evidence: 154 non-e2e and 19 e2e tests passed; Ruff and mypy passed; fixture check passed; the committed vertical fixture SHA-256 was `1a1a615d3ed57fd929f993057e068daa812d5a19b022a4d7b7355d7892c93266`; native replay processed 20 events and emitted one schema-valid alert; benign output was exactly zero bytes; observed callback order was `alert,end_of_stream`.
+Fresh 2026-08-28 evidence: 155 non-e2e and 19 e2e tests passed; Ruff and mypy passed; fixture check passed; the committed vertical fixture SHA-256 was `1a1a615d3ed57fd929f993057e068daa812d5a19b022a4d7b7355d7892c93266`; native replay processed 20 events and emitted one schema-valid alert; benign output was exactly zero bytes; observed callback order was `alert,end_of_stream`.

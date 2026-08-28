@@ -1,6 +1,6 @@
 # SIH26145 Progress and Conversation Handoff
 
-Last updated: **2026-08-27 (UTC)**
+Last updated: **2026-08-28 (UTC)**
 
 ## Current Phase
 
@@ -32,13 +32,15 @@ This milestone covers exactly one of the six required threat classes: reconnaiss
 - Branch point from `main`: `59afa18` (`docs: approve milestone one implementation plan`)
 - Tasks 1-8 reviewed implementation base: `3ca426c` (`fix: preserve safe replay failures`)
 - Required Task 9 formatter-only cleanup: `1be64d9` (`style: apply Ruff formatting`)
-- This handoff and the Milestone 1 documentation are recorded by the documentation commit containing this file, whose predecessor is `1be64d9`.
+- Milestone 1 documentation baseline: `1eacfaa` (`docs: record milestone one verification`)
+- Post-review lifecycle fix: `af96c9e` (`fix: enforce post-eos cleanup deadline`)
+- This evidence refresh is recorded by the commit containing this file, whose predecessor is `af96c9e`.
 
-The implementation history is intentionally sliced: contracts (`dd01d7f`, `78284b7`), bounded window and detector (`43fd8f1`, `e572485`), fixtures (`13a2512`), Zeek streaming policy (`8900707`), replay runner and deadline hardening (`2a41b6b`, `6871624`, `2bb8b0b`), and CLI/safe diagnostics (`c5371b2`, `3ca426c`). Inspect live status and commits before continuing because this snapshot can become stale.
+The implementation history is intentionally sliced: contracts (`dd01d7f`, `78284b7`), bounded window and detector (`43fd8f1`, `e572485`), fixtures (`13a2512`), Zeek streaming policy (`8900707`), replay runner and deadline hardening (`2a41b6b`, `6871624`, `2bb8b0b`, `af96c9e`), and CLI/safe diagnostics (`c5371b2`, `3ca426c`). Inspect live status and commits before continuing because this snapshot can become stale.
 
 ## Verified Environment and Artifacts
 
-Fresh 2026-08-27 commands reported:
+Fresh 2026-08-28 commands reported:
 
 | Item | Verified value |
 | --- | --- |
@@ -60,7 +62,7 @@ The public native command is `zeek -D -b -r <pcap> <policy>`. `-D` makes identic
 - A native Zeek policy emits and flushes one originator-SYN JSON record at a time followed by exactly one consistent EOS record.
 - Python validates and processes each event before reading the next record; a threshold alert callback precedes EOS.
 - The capture-time scan window deduplicates Zeek UIDs, tracks attempts/hosts/ports/endpoints, expires old state, and rejects timestamp regression before mutation.
-- Hard limits cover line length, active sources, per-source and global attempts, retained UIDs, cooldown sources, stderr retention, and child process shutdown.
+- Hard limits cover line length, active sources, per-source and global attempts, retained UIDs, cooldown sources, stderr retention, and child process shutdown. Pre-EOS failure cleanup has a two-second terminate-to-kill grace; after EOS, child exit, pipe completion, drainer shutdown, and direct-child cleanup share one absolute two-second deadline with no fresh cleanup budget.
 - The detector uses configurable attempt/fan-out thresholds, exact-boundary expiry and cooldown semantics, deterministic endpoint samples, and typed measured evidence.
 - The CLI emits canonical alert JSON only on stdout; child stderr is privately retained only as the byte-exact latest 64 KiB and is never echoed. CLI stderr contains only trusted safe diagnostics.
 - CLI status is `0` for success, `2` for invalid configuration/path, and `1` for runtime/process/contract/timestamp/callback/state-limit failure.
@@ -84,7 +86,7 @@ The public native command is `zeek -D -b -r <pcap> <policy>`. `-D` makes identic
 
 ## Exact Evidence Commands
 
-The managed sandbox required only a cache-location override; it does not change project behavior. The following exact commands were run from the worktree after mechanical Ruff cleanup:
+The managed sandbox required only a cache-location override; it does not change project behavior. The following exact commands were run from the worktree after the post-review lifecycle fix:
 
 ```bash
 UV_CACHE_DIR=/tmp/sih26145-task9-uv-cache uv sync --frozen --group dev
@@ -101,22 +103,27 @@ UV_CACHE_DIR=/tmp/sih26145-task9-uv-cache uv run python -c 'from pathlib import 
 
 Evidence summary:
 
-- `154 passed, 19 deselected` for non-e2e tests.
-- `19 passed, 154 deselected` for native e2e tests.
-- Ruff lint passed; Ruff format check confirmed 29 files already formatted; strict mypy found no issues in 22 source files.
+- `155 passed, 19 deselected` for non-e2e tests.
+- `19 passed, 155 deselected` for native e2e tests.
+- Ruff lint passed; Ruff format check confirmed 32 files already formatted; strict mypy found no issues in 22 source files.
 - Fixture `--check` exited `0` without changing committed fixtures.
 - Actual scan output contained one schema-valid alert; benign output was zero bytes.
 - A direct replay observation recorded `events_processed=20 alerts_emitted=1 callback_alerts=1 order=alert,end_of_stream`.
 
 Portable commands in `README.md` omit the sandbox-specific `UV_CACHE_DIR` prefix.
 
-After updating the six Task 9 documents, this exact documentation-sensitive gate also exited `0`:
+After the post-review fix and five-document evidence refresh, these documentation-sensitive checks also exited `0`:
 
 ```bash
-UV_CACHE_DIR=/tmp/sih26145-task9-uv-cache uv run ruff check . && UV_CACHE_DIR=/tmp/sih26145-task9-uv-cache uv run ruff format --check . && UV_CACHE_DIR=/tmp/sih26145-task9-uv-cache uv run mypy src tests tools && UV_CACHE_DIR=/tmp/sih26145-task9-uv-cache uv run pytest -v && git diff --check && git status --short
+UV_CACHE_DIR=/tmp/sih26145-task9-uv-cache uv run ruff check .
+UV_CACHE_DIR=/tmp/sih26145-task9-uv-cache uv run ruff format --check .
+UV_CACHE_DIR=/tmp/sih26145-task9-uv-cache uv run mypy src tests tools
+UV_CACHE_DIR=/tmp/sih26145-task9-uv-cache uv run pytest -v
+git diff --check
+git status --short
 ```
 
-It reported all Ruff checks passed, 32 files already formatted, no mypy issues in 22 source files, and `173 passed`; `git diff --check` was clean and status listed only `README.md`, `PROGRESS.md`, `docs/architecture.md`, `docs/features.md`, `docs/requirements-traceability.md`, and `docs/ppt-notes.md`.
+They reported all Ruff checks passed, 32 files already formatted, no mypy issues in 22 source files, and `174 passed`; `git diff --check` was clean and status listed only `PROGRESS.md`, `docs/architecture.md`, `docs/features.md`, `docs/requirements-traceability.md`, and `docs/ppt-notes.md`.
 
 ## Current SIH26145 Compliance Snapshot
 
