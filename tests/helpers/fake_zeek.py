@@ -118,6 +118,10 @@ def main() -> int:
     elif mode == "hang-after-eos":
         _write_stdout(_eos(0))
         _hang()
+    elif mode == "ignore-sigterm-after-eos":
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        _write_stdout(_eos(0))
+        _hang()
     elif mode == "inherited-pipes-after-eos":
         descendant = subprocess.Popen(
             [sys.executable, "-c", "import time; time.sleep(4.0)"],

@@ -164,13 +164,23 @@ def _join_stderr_before_deadline(
         raise ReplayError("post_end_of_stream_timeout", tail)
 
 
-def _stop_and_reap(process: subprocess.Popen[bytes]) -> None:
+def _stop_and_reap(
+    process: subprocess.Popen[bytes],
+    post_eos_deadline: float | None,
+) -> None:
     if process.poll() is not None:
         process.wait()
         return
     process.terminate()
+    wait_seconds = PROCESS_WAIT_SECONDS
+    if post_eos_deadline is not None:
+        wait_seconds = max(0.0, post_eos_deadline - time.monotonic())
+    if wait_seconds == 0.0:
+        process.kill()
+        process.wait()
+        return
     try:
-        process.wait(timeout=PROCESS_WAIT_SECONDS)
+        process.wait(timeout=wait_seconds)
     except subprocess.TimeoutExpired:
         process.kill()
         process.wait()
@@ -277,7 +287,7 @@ def run_command(
             )
         finally:
             if process is not None:
-                _stop_and_reap(process)
+                _stop_and_reap(process, post_eos_deadline)
                 if process.stdout is not None:
                     process.stdout.close()
             if stderr_thread is not None:

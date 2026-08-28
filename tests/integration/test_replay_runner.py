@@ -263,6 +263,28 @@ def test_child_must_exit_within_two_seconds_after_eos(tmp_path: Path) -> None:
 
 
 @pytest.mark.integration
+def test_post_eos_sigterm_resistant_child_gets_no_fresh_cleanup_budget(
+    tmp_path: Path,
+) -> None:
+    pid_path = tmp_path / "pid"
+    started = time.monotonic()
+
+    with pytest.raises(ReplayError) as captured:
+        run_command(
+            _command("ignore-sigterm-after-eos", pid_path),
+            _detector(),
+            lambda _alert: None,
+        )
+
+    elapsed = time.monotonic() - started
+    assert captured.value.diagnostic == "post_end_of_stream_timeout"
+    assert elapsed >= 2.0
+    assert elapsed < 2.75
+    assert not _process_exists(_pid(pid_path))
+    assert _stderr_threads() == []
+
+
+@pytest.mark.integration
 def test_post_eos_deadline_covers_descendant_inherited_stdout_and_stderr(
     tmp_path: Path,
 ) -> None:
