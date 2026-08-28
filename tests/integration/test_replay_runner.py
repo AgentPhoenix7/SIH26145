@@ -15,8 +15,10 @@ import pytest
 import sih26145.replay as replay
 from sih26145.contracts.alerts import AlertV1
 from sih26145.contracts.events import EndOfStreamV1, parse_stream_line
+from sih26145.detection.pipeline import DetectionPipeline
 from sih26145.detection.port_scan import PortScanDetector, ScanConfig
 from sih26145.detection.scan_window import StateLimitExceeded, StateLimits
+from sih26145.detection.syn_flood import SynFloodConfig, SynFloodDetector
 from sih26145.replay import ReplayError, ReplayResult, run_command, run_replay
 
 FAKE_ZEEK = Path("tests/helpers/fake_zeek.py").resolve()
@@ -92,6 +94,36 @@ def test_processes_events_and_emits_alert_before_accepting_eos(
     assert captured.out == ""
     assert captured.err == ""
     assert "fake child diagnostic" not in alert_output[0]
+
+
+@pytest.mark.integration
+def test_processes_every_pipeline_alert_before_accepting_eos(tmp_path: Path) -> None:
+    alerts: list[AlertV1] = []
+    detector_pipeline = DetectionPipeline(
+        port_scan=PortScanDetector(
+            config=ScanConfig(
+                minimum_attempts=1,
+                minimum_unique_destination_ports=1,
+                minimum_unique_destination_hosts=1,
+            )
+        ),
+        syn_flood=SynFloodDetector(
+            config=SynFloodConfig(minimum_syn_events=1, minimum_unique_sources=1)
+        ),
+    )
+
+    result = run_command(
+        _command("one-event", tmp_path / "pid"),
+        detector_pipeline,
+        alerts.append,
+    )
+
+    assert result == ReplayResult(
+        events_processed=1,
+        alerts_emitted=2,
+        last_event_ts=100.0,
+    )
+    assert [alert.threat_class for alert in alerts] == ["PORT_SCAN", "SYN_FLOOD"]
 
 
 @pytest.mark.integration

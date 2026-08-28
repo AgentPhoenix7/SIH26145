@@ -10,8 +10,10 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from sih26145.contracts.alerts import AlertV1
+from sih26145.detection.pipeline import DetectionPipeline
 from sih26145.detection.port_scan import PortScanDetector, ScanConfig
 from sih26145.detection.scan_window import StateLimitExceeded
+from sih26145.detection.syn_flood import SynFloodConfig, SynFloodDetector
 from sih26145.replay import ReplayError, run_replay
 
 
@@ -21,7 +23,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="sih26145-replay",
         description=(
-            "Replay a PCAP passively through native Zeek and emit PORT_SCAN alerts. "
+            "Replay a PCAP passively through native Zeek and emit PORT_SCAN or "
+            "SYN_FLOOD alerts. "
             "Thresholds and confidence scores are heuristic and unvalidated."
         ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -56,6 +59,30 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=30.0,
         help="per-source alert cooldown in seconds",
+    )
+    parser.add_argument(
+        "--syn-flood-window-seconds",
+        type=float,
+        default=10.0,
+        help="capture-time SYN-flood window in seconds",
+    )
+    parser.add_argument(
+        "--min-syn-events",
+        type=int,
+        default=100,
+        help="minimum deduplicated SYN events to one target",
+    )
+    parser.add_argument(
+        "--min-syn-sources",
+        type=int,
+        default=20,
+        help="minimum unique sources sending SYNs to one target",
+    )
+    parser.add_argument(
+        "--syn-flood-cooldown-seconds",
+        type=float,
+        default=30.0,
+        help="per-target SYN-flood alert cooldown in seconds",
     )
     return parser
 
@@ -101,7 +128,28 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
     try:
-        run_replay(args.pcap, detector, emit_alert)
+        syn_flood_config = SynFloodConfig(
+            window_seconds=args.syn_flood_window_seconds,
+            minimum_syn_events=args.min_syn_events,
+            minimum_unique_sources=args.min_syn_sources,
+            cooldown_seconds=args.syn_flood_cooldown_seconds,
+        )
+        syn_flood_detector = SynFloodDetector(config=syn_flood_config)
+    except (ValidationError, ValueError):
+        print(
+            "configuration_error: invalid_syn_flood_configuration",
+            file=sys.stderr,
+            flush=True,
+        )
+        return 2
+
+    detector_pipeline = DetectionPipeline(
+        port_scan=detector,
+        syn_flood=syn_flood_detector,
+    )
+
+    try:
+        run_replay(args.pcap, detector_pipeline, emit_alert)
     except ReplayError as exc:
         if exc.diagnostic == "pcap_not_regular_file":
             print("input_error: pcap_not_regular_file", file=sys.stderr, flush=True)
