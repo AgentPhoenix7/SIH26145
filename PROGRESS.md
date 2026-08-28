@@ -5,20 +5,22 @@ Last updated: **2026-08-28 (UTC)**
 ## Current Handoff State
 
 - **Date:** 2026-08-28 (UTC)
-- **Current branch:** `feature/milestone-2-ddos`
-- **Milestone 2 base commit:** `288af2cd61dbe34ec30587d96599c98de680ff54`
-- **Current milestone:** Milestone 2 — Streaming SYN-DDoS (**REVIEWED + VERIFIED after P2 correction; PR #2 open; unmerged**)
-- **Active Milestone 2 branch:** `feature/milestone-2-ddos`
-- **Active Milestone 2 worktree:** `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-2-ddos`
+- **Current branch:** `main`
+- **Milestone 2 merge commit:** `2e8706c404c088ee6e2312a740ff4df38dc63cbe`
+- **Milestone 2 final feature commit:** `7cb1eb513295a844ef8959616631f9f1e8fed531`
+- **Current milestone:** Milestone 2 — Streaming SYN-DDoS (**MERGED + VERIFIED + FROZEN**); Milestone 3 DNS/DGA ML is awaiting exact-plan approval.
+- **Active milestone branch:** None; only `main` remains.
+- **Active milestone worktree:** None; only `/home/agntdrgn/WorkSpace/SIH26145` remains.
 
 ### Verified Working
 
 - Milestone 1 is **VERIFIED + MERGED + FROZEN** on `main`; merge commit `459924c3b699a011c06192f526786acd7a5318ea`.
 - Passive deterministic PCAP replay, native Zeek streaming, bounded port-scan state, and validated evidence-bearing `PORT_SCAN` alerts retain the detailed evidence below.
-- The 2026-08-28 `main` sanity check passed: `189 passed`; Ruff lint passed; Ruff confirmed 33 files formatted; strict mypy found no issues in 22 source files.
+- Fresh merged-`main` verification at `2e8706c` passed on 2026-08-28: locked `uv sync` succeeded; `240 passed in 15.22s`; Ruff lint passed; Ruff confirmed 41 files formatted; strict mypy found no issues in 30 source files; both deterministic fixture checks passed.
 - The fresh Milestone 2 worktree baseline at `288af2c` passed on 2026-08-28: `189 passed`; Ruff lint passed; Ruff confirmed 33 files formatted; strict mypy found no issues in 22 source files.
-- Milestone 2 is **VERIFIED on `feature/milestone-2-ddos` and intentionally unmerged** after the PR P2 correction: 240 tests passed; Ruff lint and format passed; strict mypy passed in 30 source files; native exact-threshold replay emitted one typed `SYN_FLOOD` alert before EOS; below-threshold and distributed-benign outputs were zero bytes.
-- PR review identified avoidable high-cardinality work: every SYN recomputed entropy across all sources and sorted them before alert eligibility. The test-first correction maintains `sum(count * log2(count))` during source-count changes and sorts samples only while building an eligible alert. Fresh proof reported `240 passed in 15.10s`; PR #2 remains open at `https://github.com/AgentPhoenix7/SIH26145/pull/2`.
+- Milestone 2 is **MERGED + VERIFIED + FROZEN** by PR #2 at merge commit `2e8706c`; the merged final feature commit is `7cb1eb5`. Native exact-threshold replay emitted one typed `SYN_FLOOD` alert before EOS; below-threshold and distributed-benign outputs were zero bytes.
+- PR review identified avoidable high-cardinality work: every SYN recomputed entropy across all sources and sorted them before alert eligibility. The merged test-first correction maintains `sum(count * log2(count))` during source-count changes and sorts samples only while building an eligible alert.
+- Fresh merged-`main` native replay produced one 794-byte schema-valid `SYN_FLOOD` alert with 100 deduplicated SYN events, 20 unique sources, entropy `4.32192809488736`, fixed-window rate `10.0`, observed span `4.95`, and confidence `0.75`. The below-threshold and distributed-benign replays each produced exactly zero output bytes; the suite includes native alert-before-EOS tests.
 
 ### Implemented but Not Verified
 
@@ -26,7 +28,7 @@ Last updated: **2026-08-28 (UTC)**
 
 ### In Progress
 
-- PR #2 is open for review. Milestone 2 remains unmerged and its worktree is retained for feedback.
+- No implementation milestone is active. The minimum Milestone 3 DNS/DGA ML plan is awaiting explicit user approval.
 
 ### Known Problems
 
@@ -67,29 +69,25 @@ Last updated: **2026-08-28 (UTC)**
 
 ### Immediate Next Actions
 
-1. Keep Milestone 2 unmerged and respond only to PR feedback or explicit user instruction.
-2. Merge and freeze Milestone 2 only after explicit user instruction.
-3. Do not begin DNS/DGA work or create another milestone branch/worktree without explicit instruction.
+1. Obtain explicit approval for the minimum Milestone 3 DNS/DGA ML plan.
+2. After approval, create `feature/milestone-3-dns-dga` in a fresh linked worktree at `.worktrees/milestone-3-dns-dga` from the updated `main` baseline.
+3. Synchronize the locked environment, run the full baseline gate, and record the branch, worktree, base commit, and evidence before implementation.
+4. Complete only the genuine trained-and-locally-deployed DNS/DGA path; then return to the minimal API/dashboard, reproducible demo, measured benchmark, and final submission evidence.
 
 ### Commands to Resume
 
 ```bash
 git status --short --branch
+git worktree list --porcelain
 git log --oneline --decorate -10
-cd .worktrees/milestone-2-ddos
-UV_CACHE_DIR=/tmp/sih26145-mvp-uv-cache uv sync --frozen --group dev
-UV_CACHE_DIR=/tmp/sih26145-mvp-uv-cache uv run pytest
-UV_CACHE_DIR=/tmp/sih26145-mvp-uv-cache uv run ruff check .
-UV_CACHE_DIR=/tmp/sih26145-mvp-uv-cache uv run ruff format --check .
-UV_CACHE_DIR=/tmp/sih26145-mvp-uv-cache uv run mypy src tests tools
-UV_CACHE_DIR=/tmp/sih26145-mvp-uv-cache uv run python tools/generate_milestone2_fixtures.py --output tests/fixtures/milestone2 --check
+git check-ignore -v .worktrees/
 ```
 
 Progress status vocabulary is `PLANNED`, `IN PROGRESS`, `IMPLEMENTED`, `TESTED`, `VERIFIED`, `BLOCKED`, or `DEFERRED`. `IMPLEMENTED` means code exists; `TESTED` means the relevant tests actually ran; `VERIFIED` additionally requires observed expected behavior and passed acceptance criteria.
 
 ## Current Phase
 
-**Milestone 1 is verified, merged, and frozen. Milestone 2 — Streaming SYN-DDoS is verified on its dedicated feature branch and intentionally unmerged.**
+**Milestones 1 and 2 are verified, merged, and frozen on `main`. Milestone 3 — DNS/DGA ML is planned but not approved or started.**
 
 The verified path is:
 
@@ -114,9 +112,12 @@ Demonstrated detector coverage spans two of six required classes: reconnaissance
 - Versioned feature semantics: `docs/features.md`
 - Requirements traceability: `docs/requirements-traceability.md`
 - Repository: `/home/agntdrgn/WorkSpace/SIH26145`
-- Current branch: `feature/milestone-2-ddos`
-- Current worktree: `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-2-ddos`
-- Open pull request: `https://github.com/AgentPhoenix7/SIH26145/pull/2`
+- Current branch: `main`
+- Current worktree: `/home/agntdrgn/WorkSpace/SIH26145`
+- Active linked milestone worktree: none
+- Milestone 2 merged pull request: `https://github.com/AgentPhoenix7/SIH26145/pull/2`
+- Milestone 2 merge commit: `2e8706c404c088ee6e2312a740ff4df38dc63cbe`
+- Milestone 2 final feature commit: `7cb1eb513295a844ef8959616631f9f1e8fed531`
 - Milestone 2 base commit: `288af2cd61dbe34ec30587d96599c98de680ff54`
 - Milestone 1 merge commit: `459924c3b699a011c06192f526786acd7a5318ea`
 - Historical implementation worktree: `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-1-port-scan`
@@ -412,13 +413,13 @@ The approved plan remained deliberately limited to SYN flood. All ten items are 
 9. Run the focused and full suites, replay real benign and flood fixtures, validate actual alert JSON, then update only affected README, architecture, feature, traceability, PPT, and progress documentation.
 10. Freeze Milestone 2 immediately after acceptance; UDP reflection/amplification remains deferred unless later schedule review proves it cheap and Tier 1 stays safe.
 
-Milestone 2 is frozen in-place pending the user's review/merge instruction. Do not move to passive DNS/DGA or create another milestone worktree yet. After explicit approval and merge, the next deadline priority is the genuine trained/deployed DNS/DGA ML component, then local inference, API/dashboard integration, end-to-end evaluation, benchmark, and submission evidence.
+Milestone 2 is merged and frozen. Do not create the Milestone 3 branch/worktree or begin passive DNS/DGA implementation until the user approves the exact plan. The next deadline priority is the smallest genuine trained, evaluated, persisted, and locally integrated DNS/DGA ML path; after that, finish the minimal API/dashboard, reproducible demo, measured benchmark, and submission evidence.
 
 ## Handoff Checklist
 
 1. Confirm the repository/worktree and inspect `git status`, diffs, and recent commits.
 2. Read `AGENTS.md`, `docs/problem.md`, this file, and relevant source/tests completely.
-3. Confirm the current milestone remains in its dedicated branch/worktree and inspect live verification state.
+3. Confirm `main` is the current branch, only the main worktree exists, and Milestone 2 remains frozen.
 4. Treat this as a verified snapshot, not a substitute for fresh commands.
-5. Keep Milestone 2 unmerged and do not start DNS/DGA until the user explicitly instructs the next action.
+5. Do not create or implement Milestone 3 until the user explicitly approves its exact plan.
 6. Never claim a class, model, dashboard, metric, screenshot, or benchmark without actual current evidence.
