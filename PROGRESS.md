@@ -36,9 +36,10 @@ This milestone covers exactly one of the six required threat classes: reconnaiss
 - Post-review lifecycle fix: `af96c9e` (`fix: enforce post-eos cleanup deadline`)
 - Alert-span precision fix: `c8da88a` (`fix: normalize port scan alert spans`)
 - Configuration/state consistency fix: `6727d65` (`fix: validate scan config against state limits`)
-- This precision evidence refresh is recorded by the commit containing this file, whose predecessor is `6727d65`.
+- Timestamp/cooldown precision fix: `01b3645` (`fix: align scan duration precision`)
+- This cooldown-capacity atomicity correction is recorded by the commit containing this file, whose predecessor is `01b3645`.
 
-The implementation history is intentionally sliced: contracts (`dd01d7f`, `78284b7`), bounded window and detector (`43fd8f1`, `e572485`), fixtures (`13a2512`), Zeek streaming policy (`8900707`), replay runner and deadline hardening (`2a41b6b`, `6871624`, `2bb8b0b`, `af96c9e`), CLI/safe diagnostics (`c5371b2`, `3ca426c`), and review-driven scan consistency fixes (`c8da88a`, `6727d65`, plus the commit containing this file). Inspect live status and commits before continuing because this snapshot can become stale.
+The implementation history is intentionally sliced: contracts (`dd01d7f`, `78284b7`), bounded window and detector (`43fd8f1`, `e572485`), fixtures (`13a2512`), Zeek streaming policy (`8900707`), replay runner and deadline hardening (`2a41b6b`, `6871624`, `2bb8b0b`, `af96c9e`), CLI/safe diagnostics (`c5371b2`, `3ca426c`), and review-driven scan consistency fixes (`c8da88a`, `6727d65`, `01b3645`, plus the commit containing this file). Inspect live status and commits before continuing because this snapshot can become stale.
 
 ## Verified Environment and Artifacts
 
@@ -66,6 +67,7 @@ The public native command is `zeek -D -b -r <pcap> <policy>`. `-D` makes identic
 - The capture-time scan window deduplicates Zeek UIDs, tracks attempts/hosts/ports/endpoints, expires old state, and rejects timestamp regression before mutation.
 - Hard limits cover line length, active sources, per-source and global attempts, retained UIDs, cooldown sources, stderr retention, and child process shutdown. Pre-EOS failure cleanup has a two-second terminate-to-kill grace; after EOS, child exit, pipe completion, drainer shutdown, and direct-child cleanup share one absolute two-second deadline with no fresh cleanup budget.
 - The detector uses configurable attempt/fan-out thresholds, exact-boundary expiry and cooldown semantics, deterministic endpoint samples, and typed measured evidence. Cooldown suppression and expiry compare elapsed time directly, preserving positive cooldowns even when adding them to a large epoch timestamp would round them away.
+- A threshold event rejected by the cooldown-source capacity limit is rolled back from rolling attempts, fan-out counters, and UID deduplication state before the named failure propagates, so catching and retrying the event cannot silently lose its alert.
 - Detector construction rejects windows that can overflow derived rates, thresholds above effective state capacity, and windows longer than the UID deduplication TTL; the CLI reports these as invalid configuration before Zeek starts.
 - Detector construction normalizes the effective scan window to microsecond precision before membership, rate calculation, alert reporting, and duration validation. Alert span evidence is derived from the same microsecond-normalized UTC timestamps as `AlertWindow`, preventing ordinary large-epoch float or configuration precision differences from discarding a threshold alert during strict schema validation.
 - The CLI emits canonical alert JSON only on stdout; child stderr is privately retained only as the byte-exact latest 64 KiB and is never echoed. CLI stderr contains only trusted safe diagnostics.
@@ -177,6 +179,21 @@ UV_CACHE_DIR=/tmp/sih26145-p2b-uv-cache uv run python -c 'from pathlib import Pa
 ```
 
 Both new focused regressions were observed failing before their fixes and passing after them: a `0.09999995`-second window now becomes one effective `0.1`-second window for state, rate, and alert validation, and a positive `1e-8`-second cooldown suppresses a same-timestamp event near epoch `1700000000.0`. The full suite reported `187 passed`; Ruff lint and format, strict mypy, deterministic fixture checks, native threshold replay, and native benign replay passed. The actual scan output contained one schema-valid alert with a `4.75`-second observed span, while benign output was zero bytes.
+
+Additional P2 cooldown-capacity atomicity evidence on 2026-08-28:
+
+```bash
+UV_CACHE_DIR=/tmp/sih26145-p2c-uv-cache uv sync --frozen --group dev
+UV_CACHE_DIR=/tmp/sih26145-p2c-uv-cache uv run pytest
+UV_CACHE_DIR=/tmp/sih26145-p2c-uv-cache uv run ruff check .
+UV_CACHE_DIR=/tmp/sih26145-p2c-uv-cache uv run ruff format --check .
+UV_CACHE_DIR=/tmp/sih26145-p2c-uv-cache uv run mypy src tests tools
+UV_CACHE_DIR=/tmp/sih26145-p2c-uv-cache uv run python tools/generate_milestone1_fixtures.py --output tests/fixtures/milestone1 --check
+UV_CACHE_DIR=/tmp/sih26145-p2c-uv-cache uv run sih26145-replay tests/fixtures/milestone1/vertical_at_threshold.pcap > /tmp/sih26145-p2c-scan-alerts.jsonl
+UV_CACHE_DIR=/tmp/sih26145-p2c-uv-cache uv run sih26145-replay tests/fixtures/milestone1/benign.pcap > /tmp/sih26145-p2c-benign-alerts.jsonl
+```
+
+The retry regression was observed failing before the rollback and passing afterward: with a 10-second scan window, 30-second cooldown, and one cooldown-source slot, a new threshold event at `111.0` is rejected while the prior source's attempt has expired but its cooldown remains. Retrying that identical event now raises the same named `max_cooldown_sources` limit instead of returning `None` as a retained-UID duplicate. The full suite reported `188 passed`; Ruff lint and format, strict mypy, deterministic fixture checks, native threshold replay, and native benign replay passed. Actual scan output contained one schema-valid alert with a `4.75`-second observed span, while benign output was zero bytes.
 
 ## Current SIH26145 Compliance Snapshot
 

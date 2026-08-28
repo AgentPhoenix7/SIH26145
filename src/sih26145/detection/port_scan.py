@@ -92,6 +92,7 @@ class PortScanDetector:
             event.src_ip not in self._last_alert_by_source
             and self.cooldown_entries >= self.limits.max_cooldown_sources
         ):
+            self._window.rollback_last_observation(event)
             raise StateLimitExceeded("max_cooldown_sources")
 
         alert = self._build_alert(event, snapshot)

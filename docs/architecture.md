@@ -145,7 +145,7 @@ Expiry updates all counters, so unique counts always describe the current window
 | Retained deduplication UIDs | 200,000 |
 | Retained cooldown sources | 4,096 |
 
-Expiry runs before a limit check. If a valid event would still exceed a limit, the run fails with a named resource-limit diagnostic instead of silently evicting evidence or growing memory without bound. These are safety constants for the first prototype, not user-facing tuning knobs. Their actual memory cost must be measured before claiming a throughput capacity.
+Expiry runs before a limit check. If a valid event would still exceed a limit, the run fails with a named resource-limit diagnostic instead of silently evicting evidence or growing memory without bound. When the detector must insert an event to determine that it crosses the alert threshold but the cooldown-source map is full, it rolls back that immediately preceding attempt, its counters, and its UID before raising. Capture-time expiry and watermark advancement remain valid, while retrying the rejected event cannot be mistaken for a duplicate. These are safety constants for the first prototype, not user-facing tuning knobs. Their actual memory cost must be measured before claiming a throughput capacity.
 
 The first occurrence of a UID within its 60-second TTL enters the source window. Further occurrences do not change attempt counts or fan-out evidence. Detector construction rejects a scan window longer than the effective UID TTL, so a UID cannot expire while its original attempt remains active and delayed TCP retransmissions cannot become fresh attempts in the same window.
 

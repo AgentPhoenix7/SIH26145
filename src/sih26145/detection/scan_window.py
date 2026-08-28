@@ -163,6 +163,35 @@ class PortScanWindow:
         self._seen_uids[event.uid] = event.ts
         return self._snapshot(source, state, event.ts)
 
+    def rollback_last_observation(self, event: TcpSynAttemptV1) -> None:
+        """Undo the immediately preceding accepted event after detector rejection."""
+
+        if not self._attempts:
+            raise RuntimeError("no scan observation available to roll back")
+        attempt = self._attempts[-1]
+        state = self._sources.get(event.src_ip)
+        last_uid = next(reversed(self._seen_uids), None)
+        if (
+            attempt.ts != event.ts
+            or attempt.source_ip != event.src_ip
+            or attempt.destination_ip != event.dst_ip
+            or attempt.destination_port != event.dst_port
+            or state is None
+            or not state.attempts
+            or state.attempts[-1] is not attempt
+            or last_uid != event.uid
+        ):
+            raise RuntimeError("scan rollback ordering invariant violated")
+
+        self._attempts.pop()
+        state.attempts.pop()
+        self._decrement(state.destination_hosts, attempt.destination_ip)
+        self._decrement(state.destination_ports, attempt.destination_port)
+        self._decrement(state.destination_endpoints, attempt.endpoint)
+        if not state.attempts:
+            del self._sources[event.src_ip]
+        self._seen_uids.popitem(last=True)
+
     def _preflight_limits(self, state: _SourceState | None) -> None:
         if state is None and self.active_sources >= self.limits.max_active_sources:
             raise StateLimitExceeded("max_active_sources")

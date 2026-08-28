@@ -251,6 +251,33 @@ def test_cooldown_limit_fails_without_partial_cooldown_insertion() -> None:
     assert detector.cooldown_entries == 2
 
 
+def test_cooldown_limit_failure_does_not_consume_threshold_event() -> None:
+    state_limits = StateLimits(
+        max_active_sources=2,
+        max_attempts_per_source=1,
+        max_total_attempts=1,
+        max_dedup_uids=2,
+        max_cooldown_sources=1,
+        dedup_ttl_seconds=60.0,
+    )
+    detector = PortScanDetector(
+        config=ScanConfig(
+            window_seconds=10.0,
+            minimum_attempts=1,
+            minimum_unique_destination_ports=1,
+            minimum_unique_destination_hosts=1,
+            cooldown_seconds=30.0,
+        ),
+        limits=state_limits,
+    )
+    detector.process(syn(ts=100.0, uid="first", src_ip="192.0.2.10"))
+    blocked = syn(ts=111.0, uid="blocked", src_ip="192.0.2.11")
+
+    for _ in range(2):
+        with pytest.raises(StateLimitExceeded, match="max_cooldown_sources"):
+            detector.process(blocked)
+
+
 @pytest.mark.parametrize(
     ("attempts", "ports", "confidence", "severity"),
     [
