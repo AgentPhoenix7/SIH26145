@@ -1,6 +1,6 @@
-# Milestone 1 Architecture: Streaming Port-Scan Detection
+# Streaming SYN Detection Architecture
 
-Status: **implemented and verified for Milestone 1 port-scan replay**
+Status: **implemented and verified for Milestone 1 port-scan and Milestone 2 SYN-flood replay**
 
 Designed: **2026-08-26**
 
@@ -8,22 +8,24 @@ Last verified: **2026-08-28**
 
 ## Objective
 
-Milestone 1 is the smallest complete SIH26145 path:
+Milestones 1 and 2 share one complete passive streaming path:
 
 ```text
 deterministic PCAP replay
   -> native Zeek packet events
   -> versioned JSON Lines
   -> Python validation
-  -> bounded per-source scan window
-  -> validated PORT_SCAN alerts
+  -> synchronous detector pipeline
+     -> bounded per-source scan window
+     -> bounded per-target SYN-flood window
+  -> validated PORT_SCAN / SYN_FLOOD alerts
 ```
 
-It demonstrates passive ingest, incremental processing, bounded state, and an evidence-bearing standardized alert. It does not claim that the remaining five official threat classes, ML inference, API, or dashboard exist.
+It demonstrates passive ingest, incremental processing, bounded state, and evidence-bearing standardized alerts for port scans and SYN floods. UDP reflection/amplification, the other four named classes, ML inference, API, and dashboard do not exist.
 
 ## Decision and Alternatives
 
-Use the package-managed native Zeek 8.2.2 installation. A small Zeek policy emits originator TCP SYN attempts to standard output as JSON Lines. A Python runner starts Zeek without a shell, validates each line, and passes accepted events directly to a bounded scan detector.
+Use the package-managed native Zeek 8.2.2 installation. A small Zeek policy emits originator TCP SYN attempts to standard output as JSON Lines. A Python runner starts Zeek without a shell, validates each line, and passes accepted events to one synchronous pipeline containing the frozen scan detector and the destination-centric SYN-flood detector.
 
 This boundary was selected because it is immediate and testable. Two alternatives were rejected for Milestone 1:
 
@@ -47,13 +49,35 @@ The verified implementation preserves the six clarifications approved before cod
 
 | Component | Owns | Must not own |
 | --- | --- | --- |
-| Replay runner | Zeek process lifecycle, pipe draining, stream order, EOS consistency, and run success/failure | Packet parsing, event-time state, or scan heuristics |
+| Replay runner | Zeek process lifecycle, pipe draining, stream order, EOS consistency, and run success/failure | Packet parsing, event-time state, or detection heuristics |
 | Zeek policy | Passive packet parsing and `tcp_syn_attempt_v1` emission | Alerting, thresholds, long-lived aggregation, or network actions |
 | Input schema | Trust-boundary validation and schema-version discrimination | Detection policy |
+| Detector pipeline | Synchronous fan-out of one validated event and deterministic zero/one/two-alert batching before the next record | Detector policy, state, or process lifecycle |
 | Scan detector | Event-time watermark, deduplication, expiry, bounded rolling state, thresholding, cooldown, and alert evidence | Process management or packet parsing |
-| Alert schema | Common output validation | Detector-specific state |
+| SYN-flood detector | Destination-keyed event-time state, deduplication, entropy, rate/source thresholds, cooldown, and alert evidence | Process management, packet parsing, or spoofing claims |
+| Alert schema | Common output validation and detector-specific typed evidence | Detector state |
 
-Each boundary has one concrete implementation in Milestone 1. No interface or service layer is needed until a second implementation requires one.
+The pipeline is one concrete in-process composition, not a plugin system or service boundary. The replay runner accepts either the historical scan-only detector used by frozen regression tests or the two-detector pipeline used by the public CLI.
+
+## Milestone 2 SYN-Flood Extension
+
+Milestone 2 reuses `tcp_syn_attempt_v1` and the Zeek policy unchanged. A target is `(destination IP, destination TCP port)`. The new rolling window counts distinct Zeek UIDs per target, unique source IPs, fixed-window SYN rate, Shannon entropy over per-source event counts, observed span, and up to 10 deterministically sorted source samples.
+
+Default configurable policy is a 10-second capture-time window, at least 100 deduplicated SYN events, at least 20 unique sources, and a 30-second per-target cooldown. Both event and source gates must be true. Source entropy is supporting distribution evidence only; it is not labelled as proof of spoofing. UDP reflection/amplification is deferred.
+
+The SYN-flood state owns the same zero-lateness and exact-boundary semantics as the scan state, but keeps an independent watermark, UID TTL map, target map, global event queue, source counters, and cooldown map. Code-owned limits are 4,096 active targets, 8,192 events per target, 100,000 total events, 200,000 retained UIDs, 4,096 cooldown targets, and a 60-second UID TTL. A limit raises its stable name rather than evicting evidence. If cooldown capacity rejects a newly triggering target, the immediately inserted event, source counter, and UID are rolled back before failure propagates.
+
+At threshold, confidence is `0.75`:
+
+```text
+event_strength = min(events / (2 * minimum_syn_events), 1)
+source_strength = min(unique_sources / (2 * minimum_unique_sources), 1)
+confidence = round(0.50 + 0.25 * event_strength + 0.25 * source_strength, 4)
+```
+
+Severity uses the existing common bands: `MEDIUM` below `0.85`, `HIGH` below `0.95`, and `CRITICAL` otherwise. This is an explainable heuristic, not a calibrated probability or ML output.
+
+Offline Milestone 2 fixtures use RFC 5737 IPv4 addresses and valid generated Ethernet/IPv4/TCP checksums. The exact-threshold scenario has 100 events from 20 sources to one target; comparison scenarios have 99 events to that target and 100 events distributed across 10 targets. No generator transmits packets.
 
 ## Native Zeek Replay
 
@@ -121,7 +145,7 @@ CLI process status is stable: invalid configuration or an invalid PCAP path exit
 
 ## Event Time and Ordering
 
-All windows use capture time, never wall-clock processing time. The concrete scan-window state engine owns the Milestone 1 watermark, which is the greatest accepted `ts`, and allowed lateness is zero. Equal timestamps preserve input order. Any record with `ts` below the watermark fails before it mutates detector state. The runner propagates that failure and owns only subprocess stream order and EOS consistency.
+All windows use capture time, never wall-clock processing time. Each detector owns a watermark equal to its greatest accepted `ts`; allowed lateness is zero. Equal timestamps preserve input order. Any record below either watermark fails before that detector mutates state. The runner propagates the failure and owns only subprocess stream order, alert batching, and EOS consistency.
 
 Strict monotonic input is appropriate for deterministic PCAP fixtures, avoids silently distorting rate calculations, and allows immediate alerting without a reorder buffer. A future live or merged-capture ingest may add a bounded lateness heap in the runner while leaving the schema and detector unchanged. That extension is not part of Milestone 1.
 
@@ -292,19 +316,19 @@ Detector unit tests use constructed validated events and cover:
 
 Runner integration tests use a tiny fake child process to cover incremental line handling, stderr draining, non-zero exit, malformed output, missing or duplicate EOS, count mismatch, timeout, pre-EOS terminate-to-kill grace, and post-EOS immediate kill/reap after deadline exhaustion. They do not need Zeek for every failure branch.
 
-Native-Zeek end-to-end tests replay the generated benign and scan PCAPs through the real policy and Python runner. The scan test records callback/output order and asserts that `alert_v1` appears before Python accepts `end_of_stream`. The benign test asserts successful completion and no `PORT_SCAN` alert. The final proof runs tests, lint, type checks, the real replay command, and inspects the actual emitted JSON rather than trusting status documentation.
+Native-Zeek end-to-end tests replay generated scan, SYN-flood, below-threshold, and benign PCAPs through the real policy and Python runner. Both threshold tests assert that `alert_v1` appears before Python accepts `end_of_stream`; comparison fixtures assert successful completion with no alert. The final proof runs tests, lint, type checks, fixture checks, real replay commands, and strict validation of actual emitted JSON.
 
 ## Acceptance and Known Limitations
 
-Milestone 1 is complete only while every acceptance checkbox in `PROGRESS.md` remains backed by current command evidence. Documentation alone does not advance a runtime compliance status.
+Milestones 1 and 2 are complete only while their acceptance checkboxes in `PROGRESS.md` remain backed by current command evidence. Documentation alone does not advance a runtime compliance status.
 
 Known limitations of this slice are explicit:
 
-- It detects scan fan-out only; it does not yet detect the other five official threat classes.
+- It detects scan fan-out and destination-centric SYN floods. UDP reflection/amplification and the other four official classes are not implemented.
 - The confidence score is heuristic and thresholds are not calibrated against production traffic.
 - Strict timestamp ordering rejects merged or malformed captures with time regressions instead of reordering them.
 - Failing on state pressure preserves bounded memory and result integrity but stops the current prototype run; a measured live deployment will need a bounded degradation policy and health telemetry.
 - Zeek UID deduplication handles TCP SYN retransmissions within one Zeek run; it is not a durable identity across separate replays.
 - No throughput or latency claim exists until measured on the documented hardware.
 
-The user approved this design and the detailed plan at `docs/superpowers/plans/2026-08-26-milestone-1-streaming-port-scan.md` on 2026-08-26. The implementation was completed test-first in the isolated `feature/milestone-1-port-scan` worktree and verified on 2026-08-28 with native Zeek replay, focused tests, Ruff, mypy, deterministic-fixture checking, and actual alert-schema validation.
+The user approved the Milestone 1 design at `docs/superpowers/plans/2026-08-26-milestone-1-streaming-port-scan.md` and approved the deadline-scoped Milestone 2 plan recorded in `PROGRESS.md`. Each implementation was completed test-first in its dedicated branch/worktree and verified on 2026-08-28 with native Zeek replay, focused and full tests, Ruff, mypy, deterministic fixture checks, and actual alert-schema validation.

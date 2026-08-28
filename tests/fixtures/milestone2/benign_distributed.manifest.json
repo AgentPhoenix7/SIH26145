@@ -1,0 +1,66 @@
+{
+  "capture_sha256": "a30fd4dff84dd9d8d01b31bd7baff4c54dcda2be135feb5fcf4ca7beb90df9e2",
+  "endpoints": {
+    "destination_ips": [
+      "198.51.100.20",
+      "198.51.100.21",
+      "198.51.100.22",
+      "198.51.100.23",
+      "198.51.100.24",
+      "198.51.100.25",
+      "198.51.100.26",
+      "198.51.100.27",
+      "198.51.100.28",
+      "198.51.100.29"
+    ],
+    "destination_ports": [
+      443
+    ],
+    "source_ips": [
+      "192.0.2.1",
+      "192.0.2.2",
+      "192.0.2.3",
+      "192.0.2.4",
+      "192.0.2.5",
+      "192.0.2.6",
+      "192.0.2.7",
+      "192.0.2.8",
+      "192.0.2.9",
+      "192.0.2.10",
+      "192.0.2.11",
+      "192.0.2.12",
+      "192.0.2.13",
+      "192.0.2.14",
+      "192.0.2.15",
+      "192.0.2.16",
+      "192.0.2.17",
+      "192.0.2.18",
+      "192.0.2.19",
+      "192.0.2.20"
+    ]
+  },
+  "expected_alert_count": 0,
+  "expected_threat_class": "SYN_FLOOD",
+  "generator": "tools/generate_milestone2_fixtures.py",
+  "generator_version": "1.0.0",
+  "label": "BENIGN_DISTRIBUTED_SYN",
+  "packet_count": 100,
+  "parameters": {
+    "syn_events": 100,
+    "unique_sources": 20,
+    "unique_targets": 10
+  },
+  "provenance": {
+    "address_standards": [
+      "RFC 5737"
+    ],
+    "kind": "locally_generated_documentation_ranges",
+    "network_activity": "none"
+  },
+  "scenario_id": "benign_distributed",
+  "schema_version": "fixture_manifest_v1",
+  "timestamp_range": {
+    "end": "2023-11-14T22:13:24.950000Z",
+    "start": "2023-11-14T22:13:20.000000Z"
+  }
+}

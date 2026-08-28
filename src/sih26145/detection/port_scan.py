@@ -11,10 +11,10 @@ from pydantic import Field, StrictInt
 
 from sih26145.contracts.alerts import (
     AlertSource,
-    AlertV1,
     AlertWindow,
     DestinationSample,
     DetectorIdentity,
+    PortScanAlertV1,
     PortScanEvidence,
     ScanThresholdEvidence,
     Severity,
@@ -76,7 +76,7 @@ class PortScanDetector:
     def cooldown_entries(self) -> int:
         return len(self._last_alert_by_source)
 
-    def process(self, event: TcpSynAttemptV1) -> AlertV1 | None:
+    def process(self, event: TcpSynAttemptV1) -> PortScanAlertV1 | None:
         """Process one validated SYN event and possibly return one alert."""
 
         snapshot = self._window.observe(event)
@@ -116,7 +116,7 @@ class PortScanDetector:
         self,
         event: TcpSynAttemptV1,
         snapshot: WindowSnapshot,
-    ) -> AlertV1:
+    ) -> PortScanAlertV1:
         confidence = self._confidence(snapshot)
         severity = self._severity(confidence)
         start = datetime.fromtimestamp(snapshot.start_ts, UTC)
@@ -137,7 +137,7 @@ class PortScanDetector:
             thresholds=thresholds,
             destination_samples=samples,
         )
-        return AlertV1(
+        return PortScanAlertV1(
             timestamp=end,
             flow_id=event.uid,
             threat_class="PORT_SCAN",

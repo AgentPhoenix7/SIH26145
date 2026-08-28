@@ -23,12 +23,14 @@ from sih26145.contracts.events import (
     TcpSynAttemptV1,
     parse_stream_line,
 )
+from sih26145.detection.pipeline import DetectionPipeline
 from sih26145.detection.port_scan import PortScanDetector
 from sih26145.detection.scan_window import StateLimitExceeded, TimestampRegressionError
 
 STDERR_TAIL_BYTES = 65_536
 PROCESS_WAIT_SECONDS = 2.0
 STDERR_SHUTDOWN_RESERVE_SECONDS = 0.05
+ReplayDetector = PortScanDetector | DetectionPipeline
 
 
 @dataclass(frozen=True, slots=True)
@@ -219,7 +221,7 @@ def _stop_and_reap(
 
 def run_command(
     command: Sequence[str],
-    detector: PortScanDetector,
+    detector: ReplayDetector,
     emit_alert: Callable[[AlertV1], None],
 ) -> ReplayResult:
     """Consume one bounded JSONL stream from a direct child process."""
@@ -274,7 +276,7 @@ def run_command(
                     break
 
                 try:
-                    alert = detector.process(record)
+                    produced = detector.process(record)
                 except TimestampRegressionError:
                     raise ReplayError("timestamp_regression", stderr_tail) from None
                 except StateLimitExceeded:
@@ -284,7 +286,13 @@ def run_command(
 
                 events_processed += 1
                 last_event_ts = record.ts
-                if alert is not None:
+                if isinstance(produced, tuple):
+                    alerts = produced
+                elif produced is None:
+                    alerts = ()
+                else:
+                    alerts = (produced,)
+                for alert in alerts:
                     try:
                         emit_alert(alert)
                     except Exception:
@@ -339,7 +347,7 @@ def run_command(
 
 def run_replay(
     pcap_path: Path,
-    detector: PortScanDetector,
+    detector: ReplayDetector,
     emit_alert: Callable[[AlertV1], None],
 ) -> ReplayResult:
     """Replay one existing regular PCAP through the packaged native-Zeek policy."""

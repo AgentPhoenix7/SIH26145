@@ -60,6 +60,10 @@ def main() -> int:
             time.sleep(0.005)
         _write_stdout(_eos(20, 101.9))
         return 0
+    if mode == "one-event":
+        _write_stdout(_syn(0))
+        _write_stdout(_eos(1, 100.0))
+        return 0
     if mode == "blank":
         sys.stdout.buffer.write(b"\n")
     elif mode == "oversized":

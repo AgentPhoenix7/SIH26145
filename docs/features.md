@@ -4,7 +4,7 @@ Last verified: **2026-08-28 (UTC)**
 
 ## Scope and Observability
 
-Milestone 1 implements only passive reconnaissance/port-scan detection. Native Zeek reads a PCAP and emits `tcp_syn_attempt_v1` metadata for originator TCP SYN packets. The runtime uses capture timestamp, Zeek UID, source/destination IP, source/destination port, and transport. It does not require payloads, decryption, a completed handshake, active probes, or a return path to an observed endpoint.
+Milestones 1 and 2 implement passive reconnaissance/port-scan and SYN-flood detection. Native Zeek reads a PCAP and emits `tcp_syn_attempt_v1` metadata for originator TCP SYN packets. Both detectors reproduce their features from capture timestamp, Zeek UID, source/destination IP, source/destination port, and transport. Neither requires payloads, decryption, a completed handshake, active probes, or a return path to an observed endpoint.
 
 The committed PCAP fixtures are IPv4. Strict event contracts and detector state have focused IPv6 unit coverage, but native IPv6 replay is not yet an end-to-end claim.
 
@@ -40,15 +40,40 @@ AND (
 
 The vertical threshold fixture therefore contains 20 attempts across exactly 15 unique destination ports. The horizontal threshold fixture contains 20 attempts across exactly 15 unique destination hosts. These thresholds are configurable CLI policy values and are not production calibrated.
 
+## SYN-Flood Feature Definition
+
+The following values form typed `alert_v1` SYN-flood evidence. All values describe one destination `(IP, port)` capture-time window after UID deduplication.
+
+| Feature | Definition | Unit / bound |
+| --- | --- | --- |
+| Deduplicated SYN events | Count of accepted originator SYN events with distinct Zeek UIDs for the target. | Integer; bounded by per-target and global event limits |
+| Unique sources | Cardinality of source IP addresses sending active SYN events to the target. | Integer from `0` to SYN events |
+| Source-IP entropy | Shannon entropy `-sum(p_i * log2(p_i))` over active per-source event counts. It describes source distribution; it is not proof that addresses are spoofed. | Bits from `0` through `log2(unique_sources)` |
+| Fixed-window SYN rate | `deduplicated_syn_events / effective_configured_window_seconds`; deliberately not divided by observed span. | SYN events per configured second; finite and non-negative |
+| Observed span | Difference between the microsecond-normalized triggering and oldest active event timestamps. | Capture-time seconds from `0` through the configured window |
+| Target | Destination IP and TCP port owning the rolling window. | One validated IPv4/IPv6 endpoint |
+| Source samples | First 10 unique sources in deterministic IPv4-before-IPv6, numeric-IP order. | At most 10 unique IP addresses |
+
+The default SYN-flood rule is:
+
+```text
+deduplicated_syn_events >= 100
+AND unique_sources >= 20
+```
+
+The exact-threshold fixture has 100 SYN events from 20 uniformly represented RFC 5737 sources to `198.51.100.20:443` in 4.95 capture-time seconds. The 99-event fixture and a 100-event fixture distributed across 10 targets do not alert. These are controlled-fixture outcomes, not production calibration or a false-positive-rate measurement.
+
 ## Capture-Time Boundaries and Bounds
 
 The watermark is the greatest accepted capture timestamp; allowed lateness is zero. Equal timestamps retain input order. A lower timestamp fails before state mutation.
 
-For a 10-second window at watermark `t`, attempts with timestamps lower than `t - 10` expire. An attempt exactly at `t - 10` remains included and expires only when the watermark advances beyond that boundary. UID deduplication similarly retains a UID at exactly its 60-second TTL boundary and permits reuse only after the boundary.
+For a 10-second window at watermark `t`, events with timestamps lower than `t - 10` expire. An event exactly at `t - 10` remains included and expires only when the watermark advances beyond that boundary. UID deduplication similarly retains a UID at exactly its 60-second TTL boundary and permits reuse only after the boundary. Each detector owns the same zero-lateness capture-time rule and maintains independent state from the shared validated event.
 
 Configuration validation keeps these features internally achievable and finite. The effective scan window is normalized to six decimal places so state membership, fixed-window rate, serialized alert duration, and duration validation share the alert timestamp precision. A positive configured value that normalizes to zero is invalid. The effective window cannot exceed the UID TTL, every attempt/fan-out threshold must fit within the effective attempt capacity, and the maximum capacity divided by the window must be finite. Under default limits, the effective capacity is 4,096 attempts and the maximum window is 60 seconds.
 
 Cooldown is capture-time based and source scoped. Suppression and expiry compare `event_ts - last_alert_ts` directly with `cooldown_seconds`, so even a positive cooldown smaller than a large epoch timestamp's floating-point ULP remains effective. A source is suppressed below the cooldown and may alert again exactly at the configured boundary. Cooldown entries expire and are hard-limited to 4,096. The other code-owned limits are 4,096 active sources, 4,096 attempts per source, 100,000 attempts overall, and 200,000 retained UIDs. An event that would exceed a limit fails with the named invariant and does not silently evict or partially insert evidence. If a newly inserted threshold event discovers a full cooldown map, its attempt, counters, and UID are rolled back so the rejected event remains retry-safe.
+
+SYN-flood cooldown is capture-time based and target scoped with the same exact-boundary behavior. Its code-owned limits are 4,096 active targets, 8,192 events per target, 100,000 events overall, 200,000 retained UIDs, and 4,096 cooldown targets. A cooldown-capacity rejection rolls back the triggering target event, source counter, and UID.
 
 ## Confidence and Severity
 
@@ -65,6 +90,16 @@ confidence = round(0.50 + 0.25 * attempt_strength + 0.25 * fanout_strength, 4)
 
 At the exact default threshold, confidence is `0.75`. Severity is `MEDIUM` below `0.85`, `HIGH` from `0.85` to below `0.95`, and `CRITICAL` from `0.95` onward.
 
+SYN-flood confidence uses the same transparent shape with its two required gates:
+
+```text
+event_strength = min(events / (2 * minimum_syn_events), 1)
+source_strength = min(unique_sources / (2 * minimum_unique_sources), 1)
+confidence = round(0.50 + 0.25 * event_strength + 0.25 * source_strength, 4)
+```
+
+It is also `0.75` at the exact threshold and uses the same severity bands.
+
 ## Version and Parity Status
 
-The runtime event contract is `tcp_syn_attempt_v1`; the alert contract is `alert_v1`; the detector identifies itself as `port_scan_window` version `1.0.0`. No training dataset or model consumes these scan features yet. DNS/DGA ML must define a separate shared feature version that local passive inference can reproduce exactly.
+The runtime event contract remains `tcp_syn_attempt_v1`; the common alert contract remains `alert_v1`. Detector identities are `port_scan_window` and `syn_flood_window`, both version `1.0.0`. No training dataset or model consumes these heuristic features. DNS/DGA ML must define a separate shared feature version that local passive inference can reproduce exactly.
