@@ -217,3 +217,20 @@ def test_alert_contains_utc_trigger_time_and_ten_sorted_samples() -> None:
     assert alert.timestamp.timestamp() == events[-1].ts
     assert len(alert.evidence.destination_samples) == 10
     assert [sample.port for sample in alert.evidence.destination_samples] == list(range(20, 30))
+
+
+def test_alert_span_uses_normalized_capture_timestamps() -> None:
+    detector = PortScanDetector(
+        config=ScanConfig(
+            window_seconds=1.0,
+            minimum_attempts=2,
+            minimum_unique_destination_ports=2,
+            minimum_unique_destination_hosts=2,
+        )
+    )
+
+    assert detector.process(syn(ts=1_700_000_000.0, uid="first", dst_port=22)) is None
+    alert = detector.process(syn(ts=1_700_000_000.000001, uid="trigger", dst_port=23))
+
+    assert alert is not None
+    assert alert.evidence.observed_span_seconds == 0.000001

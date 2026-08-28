@@ -110,7 +110,7 @@ class PortScanDetector:
             unique_destination_ports=snapshot.unique_ports,
             unique_destination_endpoints=snapshot.unique_endpoints,
             attempt_rate_per_second=snapshot.attempts / self.config.window_seconds,
-            observed_span_seconds=snapshot.end_ts - snapshot.start_ts,
+            observed_span_seconds=(end - start).total_seconds(),
             thresholds=thresholds,
             destination_samples=samples,
         )

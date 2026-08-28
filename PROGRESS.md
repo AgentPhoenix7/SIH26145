@@ -64,6 +64,7 @@ The public native command is `zeek -D -b -r <pcap> <policy>`. `-D` makes identic
 - The capture-time scan window deduplicates Zeek UIDs, tracks attempts/hosts/ports/endpoints, expires old state, and rejects timestamp regression before mutation.
 - Hard limits cover line length, active sources, per-source and global attempts, retained UIDs, cooldown sources, stderr retention, and child process shutdown. Pre-EOS failure cleanup has a two-second terminate-to-kill grace; after EOS, child exit, pipe completion, drainer shutdown, and direct-child cleanup share one absolute two-second deadline with no fresh cleanup budget.
 - The detector uses configurable attempt/fan-out thresholds, exact-boundary expiry and cooldown semantics, deterministic endpoint samples, and typed measured evidence.
+- Alert span evidence is derived from the same microsecond-normalized UTC timestamps as `AlertWindow`, preventing ordinary large-epoch float subtraction error from discarding a threshold alert during strict schema validation.
 - The CLI emits canonical alert JSON only on stdout; child stderr is privately retained only as the byte-exact latest 64 KiB and is never echoed. CLI stderr contains only trusted safe diagnostics.
 - CLI status is `0` for success, `2` for invalid configuration/path, and `1` for runtime/process/contract/timestamp/callback/state-limit failure.
 - Deterministic offline PCAP generation uses documentation-only IPv4 ranges and records scenario parameters, expected outcomes, packet counts, SHA-256, and provenance in manifests.
@@ -124,6 +125,22 @@ git status --short
 ```
 
 They reported all Ruff checks passed, 32 files already formatted, no mypy issues in 22 source files, and `174 passed`; `git diff --check` was clean and status listed only `PROGRESS.md`, `docs/architecture.md`, `docs/features.md`, `docs/requirements-traceability.md`, and `docs/ppt-notes.md`.
+
+PR review correction evidence on 2026-08-28:
+
+```bash
+UV_CACHE_DIR=/tmp/sih26145-review-uv-cache uv run pytest tests/unit/test_port_scan_detector.py::test_alert_span_uses_normalized_capture_timestamps -v
+UV_CACHE_DIR=/tmp/sih26145-review-uv-cache uv run pytest
+UV_CACHE_DIR=/tmp/sih26145-review-uv-cache uv run ruff check .
+UV_CACHE_DIR=/tmp/sih26145-review-uv-cache uv run ruff format --check .
+UV_CACHE_DIR=/tmp/sih26145-review-uv-cache uv run mypy src tests tools
+UV_CACHE_DIR=/tmp/sih26145-review-uv-cache uv run python tools/generate_milestone1_fixtures.py --output tests/fixtures/milestone1 --check
+UV_CACHE_DIR=/tmp/sih26145-review-uv-cache uv run sih26145-replay tests/fixtures/milestone1/vertical_at_threshold.pcap > /tmp/sih26145-review-scan-alerts.jsonl
+UV_CACHE_DIR=/tmp/sih26145-review-uv-cache uv run sih26145-replay tests/fixtures/milestone1/benign.pcap > /tmp/sih26145-review-benign-alerts.jsonl
+UV_CACHE_DIR=/tmp/sih26145-review-uv-cache uv run python -c 'from pathlib import Path; from sih26145.contracts.alerts import AlertV1; lines=Path("/tmp/sih26145-review-scan-alerts.jsonl").read_text().splitlines(); assert len(lines)==1; alert=AlertV1.model_validate_json(lines[0]); assert alert.evidence.observed_span_seconds==4.75; assert Path("/tmp/sih26145-review-benign-alerts.jsonl").read_bytes()==b""'
+```
+
+The focused large-epoch, one-microsecond regression test was observed failing before the fix and passing after it. The full suite then reported `175 passed`; Ruff lint, Ruff format, strict mypy, and deterministic fixture checks passed; native replay emitted one schema-valid scan alert with a `4.75`-second span while benign replay emitted zero bytes.
 
 ## Current SIH26145 Compliance Snapshot
 

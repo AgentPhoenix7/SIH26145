@@ -25,7 +25,7 @@ The following values form the typed `alert_v1` port-scan evidence. All values de
 | Unique destination ports | Cardinality of destination TCP ports among active attempts. | Integer from `0` to attempts |
 | Unique destination endpoints | Cardinality of `(destination IP, destination port)` pairs among active attempts. | Integer from `0` to attempts; at least the host and port cardinalities |
 | Fixed-window attempt rate | `deduplicated_attempts / configured_window_seconds`. It is deliberately not divided by observed span. | Attempts per configured second; finite and non-negative |
-| Observed span | `trigger_timestamp - oldest_active_attempt_timestamp`. | Capture-time seconds from `0` through the configured window |
+| Observed span | Difference between the microsecond-normalized UTC timestamps used as the alert window end and start. | Capture-time seconds from `0` through the configured window; consistent with serialized `alert_v1` timestamps |
 | Destination samples | First 10 unique endpoints in deterministic IPv4-before-IPv6, numeric-IP, then port order. | At most 10 unique endpoint records |
 
 The default scan rule is:

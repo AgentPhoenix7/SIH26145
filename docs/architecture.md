@@ -196,7 +196,7 @@ Evidence contains actual current-window values:
 - deduplicated attempt count;
 - unique destination host, port, and endpoint counts;
 - fixed-window attempt rate (`attempts / window_seconds`);
-- observed span from the oldest to triggering event;
+- observed span from the oldest to triggering event, derived from the same microsecond-normalized UTC timestamps carried by the alert window;
 - the threshold values used;
 - at most 10 destination endpoint samples, sorted for deterministic output.
 
