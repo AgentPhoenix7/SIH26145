@@ -66,7 +66,6 @@ class SynFloodSnapshot:
     events: int
     unique_sources: int
     source_ip_entropy_bits: float
-    source_samples: tuple[IPAddress, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,6 +79,7 @@ class _SynObservation:
 class _TargetState:
     observations: deque[_SynObservation] = field(default_factory=deque)
     sources: Counter[IPAddress] = field(default_factory=Counter)
+    source_count_log_sum: float = 0.0
 
 
 class SynFloodWindow:
@@ -148,7 +148,7 @@ class SynFloodWindow:
         )
         self._observations.append(observation)
         state.observations.append(observation)
-        state.sources[event.src_ip] += 1
+        self._increment_source(state, event.src_ip)
         self._seen_uids[event.uid] = event.ts
         return self._snapshot(target, state, event.ts)
 
@@ -174,10 +174,18 @@ class SynFloodWindow:
 
         self._observations.pop()
         state.observations.pop()
-        self._decrement(state.sources, observation.source_ip)
+        self._decrement_source(state, observation.source_ip)
         if not state.observations:
             del self._targets[target]
         self._seen_uids.popitem(last=True)
+
+    def source_samples(self, target: Endpoint) -> tuple[IPAddress, ...]:
+        """Return deterministic source samples only when an alert is being built."""
+
+        state = self._targets.get(target)
+        if state is None:
+            raise RuntimeError("SYN-flood target missing during alert construction")
+        return tuple(sorted(state.sources, key=self._ip_sort_key)[:10])
 
     def _preflight_limits(self, state: _TargetState | None) -> None:
         if state is None and self.active_targets >= self.limits.max_active_targets:
@@ -197,7 +205,7 @@ class SynFloodWindow:
             target_expired = state.observations.popleft()
             if target_expired is not expired:
                 raise RuntimeError("SYN-flood state ordering invariant violated")
-            self._decrement(state.sources, expired.source_ip)
+            self._decrement_source(state, expired.source_ip)
             if not state.observations:
                 del self._targets[expired.target]
 
@@ -210,10 +218,29 @@ class SynFloodWindow:
             self._seen_uids.popitem(last=False)
 
     @staticmethod
-    def _decrement(counter: Counter[IPAddress], key: IPAddress) -> None:
-        counter[key] -= 1
-        if counter[key] == 0:
-            del counter[key]
+    def _count_log_count(count: int) -> float:
+        if count <= 1:
+            return 0.0
+        return count * math.log2(count)
+
+    def _increment_source(self, state: _TargetState, source: IPAddress) -> None:
+        previous = state.sources[source]
+        current = previous + 1
+        state.source_count_log_sum -= self._count_log_count(previous)
+        state.source_count_log_sum += self._count_log_count(current)
+        state.sources[source] = current
+
+    def _decrement_source(self, state: _TargetState, source: IPAddress) -> None:
+        previous = state.sources[source]
+        current = previous - 1
+        state.source_count_log_sum -= self._count_log_count(previous)
+        state.source_count_log_sum += self._count_log_count(current)
+        if current == 0:
+            del state.sources[source]
+            if not state.sources:
+                state.source_count_log_sum = 0.0
+            return
+        state.sources[source] = current
 
     @staticmethod
     def _ip_sort_key(address: IPAddress) -> tuple[int, int]:
@@ -226,10 +253,7 @@ class SynFloodWindow:
         end_ts: float,
     ) -> SynFloodSnapshot:
         events = len(state.observations)
-        entropy = -sum(
-            (count / events) * math.log2(count / events) for count in state.sources.values()
-        )
-        samples = tuple(sorted(state.sources, key=self._ip_sort_key)[:10])
+        entropy = max(0.0, math.log2(events) - state.source_count_log_sum / events)
         return SynFloodSnapshot(
             target=target,
             start_ts=state.observations[0].ts,
@@ -237,7 +261,6 @@ class SynFloodWindow:
             events=events,
             unique_sources=len(state.sources),
             source_ip_entropy_bits=entropy,
-            source_samples=samples,
         )
 
 
@@ -345,7 +368,7 @@ class SynFloodDetector:
                 minimum_syn_events=self.config.minimum_syn_events,
                 minimum_unique_sources=self.config.minimum_unique_sources,
             ),
-            source_samples=list(snapshot.source_samples),
+            source_samples=list(self._window.source_samples(snapshot.target)),
         )
         return SynFloodAlertV1(
             timestamp=end,

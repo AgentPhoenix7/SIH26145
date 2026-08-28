@@ -48,7 +48,7 @@ The benign fixture processed 10 events and produced exactly zero alert bytes. Th
 
 ## Actual SYN-Flood Threshold Alert
 
-The committed `syn_flood_at_threshold.pcap` has SHA-256 `712bb6ea6da09fe4b7cb7af184f00110dc755d32a667e68e2e94cdb08b1be76d`. A verified native replay processed 100 SYN events and emitted exactly one 795-byte alert with these actual fields:
+The committed `syn_flood_at_threshold.pcap` has SHA-256 `712bb6ea6da09fe4b7cb7af184f00110dc755d32a667e68e2e94cdb08b1be76d`. A verified native replay processed 100 SYN events and emitted exactly one 794-byte alert with these actual fields:
 
 | Field | Actual value |
 | --- | --- |
@@ -64,7 +64,7 @@ The committed `syn_flood_at_threshold.pcap` has SHA-256 `712bb6ea6da09fe4b7cb7af
 | Configured window | `10.0` capture-time seconds |
 | Deduplicated SYN events | `100` |
 | Unique sources | `20` |
-| Source-IP entropy | `4.321928094887363` bits |
+| Source-IP entropy | `4.32192809488736` bits |
 | Fixed-window SYN rate | `10.0` events per configured second |
 | Observed span | `4.95` capture-time seconds |
 

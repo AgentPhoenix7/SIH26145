@@ -7,7 +7,7 @@ Last updated: **2026-08-28 (UTC)**
 - **Date:** 2026-08-28 (UTC)
 - **Current branch:** `feature/milestone-2-ddos`
 - **Milestone 2 base commit:** `288af2cd61dbe34ec30587d96599c98de680ff54`
-- **Current milestone:** Milestone 2 — Streaming SYN-DDoS (**REVIEWED + VERIFIED on feature branch; PR #2 open; unmerged**)
+- **Current milestone:** Milestone 2 — Streaming SYN-DDoS (**REVIEWED + VERIFIED after P2 correction; PR #2 open; unmerged**)
 - **Active Milestone 2 branch:** `feature/milestone-2-ddos`
 - **Active Milestone 2 worktree:** `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-2-ddos`
 
@@ -17,8 +17,8 @@ Last updated: **2026-08-28 (UTC)**
 - Passive deterministic PCAP replay, native Zeek streaming, bounded port-scan state, and validated evidence-bearing `PORT_SCAN` alerts retain the detailed evidence below.
 - The 2026-08-28 `main` sanity check passed: `189 passed`; Ruff lint passed; Ruff confirmed 33 files formatted; strict mypy found no issues in 22 source files.
 - The fresh Milestone 2 worktree baseline at `288af2c` passed on 2026-08-28: `189 passed`; Ruff lint passed; Ruff confirmed 33 files formatted; strict mypy found no issues in 22 source files.
-- Milestone 2 is **VERIFIED on `feature/milestone-2-ddos` and intentionally unmerged**: 238 tests passed; Ruff lint and format passed; strict mypy passed in 30 source files; native exact-threshold replay emitted one typed `SYN_FLOOD` alert before EOS; below-threshold and distributed-benign outputs were zero bytes.
-- A complete 2026-08-28 review of `288af2c..HEAD` found no correctness, security-boundary, regression, fixture-provenance, or documentation-blocking defects. Fresh proof reported `238 passed in 15.14s`; PR #2 is open at `https://github.com/AgentPhoenix7/SIH26145/pull/2`.
+- Milestone 2 is **VERIFIED on `feature/milestone-2-ddos` and intentionally unmerged** after the PR P2 correction: 240 tests passed; Ruff lint and format passed; strict mypy passed in 30 source files; native exact-threshold replay emitted one typed `SYN_FLOOD` alert before EOS; below-threshold and distributed-benign outputs were zero bytes.
+- PR review identified avoidable high-cardinality work: every SYN recomputed entropy across all sources and sorted them before alert eligibility. The test-first correction maintains `sum(count * log2(count))` during source-count changes and sorts samples only while building an eligible alert. Fresh proof reported `240 passed in 15.10s`; PR #2 remains open at `https://github.com/AgentPhoenix7/SIH26145/pull/2`.
 
 ### Implemented but Not Verified
 
@@ -152,7 +152,7 @@ Fresh 2026-08-28 commands reported:
 | SYN-flood threshold fixture | `tests/fixtures/milestone2/syn_flood_at_threshold.pcap` |
 | SYN-flood fixture SHA-256 | `712bb6ea6da09fe4b7cb7af184f00110dc755d32a667e68e2e94cdb08b1be76d` |
 | Actual SYN-flood replay accounting | 100 processed events, 1 emitted alert |
-| SYN-flood CLI output | 1 JSONL record, 795 bytes |
+| SYN-flood CLI output | 1 JSONL record, 794 bytes |
 | SYN-flood comparison outputs | 99-event and distributed-benign captures: exactly 0 bytes |
 | SYN-flood incremental order | `alert,end_of_stream` |
 
@@ -176,7 +176,7 @@ The public native command is `zeek -D -b -r <pcap> <policy>`. `-D` makes identic
 
 Milestone 2 adds:
 
-- A destination `(IP, port)` keyed capture-time window with UID deduplication, exact-boundary expiry, source counts, Shannon source-IP entropy, deterministic source samples, and independent hard limits for targets, per-target/global events, UIDs, and cooldown targets.
+- A destination `(IP, port)` keyed capture-time window with UID deduplication, exact-boundary expiry, source counts, incrementally maintained Shannon source-IP entropy, alert-only deterministic source sampling, and independent hard limits for targets, per-target/global events, UIDs, and cooldown targets.
 - A configurable `SYN_FLOOD` rule requiring both 100 deduplicated SYN events and 20 unique sources in the default 10-second window. Entropy is supporting source-distribution evidence, not proof of spoofing.
 - Typed `SynFloodEvidence` inside the unchanged `alert_v1` envelope, while detector-specific alert subclasses preserve static port-scan evidence typing and serialization compatibility.
 - A concrete synchronous `DetectionPipeline` that may produce zero, one, or two alerts for one validated event before the replay runner reads the next record.
@@ -188,6 +188,7 @@ Milestone 2 adds:
 - [x] Reuses the frozen `tcp_syn_attempt_v1` and Zeek policy unchanged.
 - [x] One validated event feeds both detectors synchronously and all resulting alerts are emitted before the next stream record.
 - [x] Target-keyed state measures deduplicated events, fixed-window rate, unique sources, source entropy, observed span, target, thresholds, and deterministic source samples.
+- [x] Entropy maintenance performs constant work per source-count change, and full source sorting occurs only for an eligible alert.
 - [x] State expiry, UID deduplication, timestamp rejection, every target/event/UID bound, cooldown, and retry-safe cooldown-capacity rollback have focused tests.
 - [x] SYN-flood configuration is validated against finite rates, UID TTL, and effective state capacity before replay.
 - [x] Exact-threshold native replay emits one strict `SYN_FLOOD` alert before EOS.
@@ -226,7 +227,9 @@ UV_CACHE_DIR=/tmp/sih26145-m2-uv-cache uv run sih26145-replay tests/fixtures/mil
 UV_CACHE_DIR=/tmp/sih26145-m2-uv-cache uv run sih26145-replay tests/fixtures/milestone2/benign_distributed.pcap > /tmp/sih26145-m2-benign-alerts.jsonl
 ```
 
-Observed results: `238 passed in 13.85s`; `All checks passed!`; `41 files already formatted`; `Success: no issues found in 30 source files`; both fixture checks exited `0`. The actual threshold output was one line and 795 bytes; both comparison outputs were zero bytes. The alert validated as `alert_v1` with class `SYN_FLOOD`, 100 deduplicated events, 20 unique sources, entropy `4.321928094887363`, fixed-window rate `10.0`, span `4.95`, target `198.51.100.20:443`, and confidence `0.75`. Native e2e observation recorded `alert,end_of_stream`.
+Observed results after the PR performance correction: `240 passed in 15.10s`; `All checks passed!`; `41 files already formatted`; `Success: no issues found in 30 source files`; both fixture checks exited `0`. The actual threshold output was one line and 794 bytes; both comparison outputs were zero bytes. The alert validated as `alert_v1` with class `SYN_FLOOD`, 100 deduplicated events, 20 unique sources, entropy `4.32192809488736`, fixed-window rate `10.0`, span `4.95`, target `198.51.100.20:443`, and confidence `0.75`. Native e2e observation recorded `alert,end_of_stream`.
+
+The two focused PR regressions were observed failing before the correction: 100 unique-source observations made 5,050 `log2` calls against a constant-work limit of 400, and the first below-threshold event attempted to sort the active source set. Both passed after incremental entropy maintenance and alert-only sample sorting. The full gate and actual replay evidence above then passed without changing the fixture bytes, alert class, counts, thresholds, target, confidence, or comparison outcomes.
 
 The new contract, detector, pipeline, runner batching, direct-script generator, and CLI behaviors were each observed failing for the expected missing or incorrect behavior before their minimal implementation/fix and then passing focused tests. The pre-implementation worktree baseline remains recorded above as 189 tests.
 

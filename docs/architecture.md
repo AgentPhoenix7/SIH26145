@@ -67,6 +67,8 @@ Default configurable policy is a 10-second capture-time window, at least 100 ded
 
 The SYN-flood state owns the same zero-lateness and exact-boundary semantics as the scan state, but keeps an independent watermark, UID TTL map, target map, global event queue, source counters, and cooldown map. Code-owned limits are 4,096 active targets, 8,192 events per target, 100,000 total events, 200,000 retained UIDs, 4,096 cooldown targets, and a 60-second UID TTL. A limit raises its stable name rather than evicting evidence. If cooldown capacity rejects a newly triggering target, the immediately inserted event, source counter, and UID are rolled back before failure propagates.
 
+Each target also maintains `sum(count * log2(count))` as source counts change. Entropy is therefore derived as `log2(events) - sum(count * log2(count)) / events` with constant work per accepted or expired observation instead of rescanning every source. The detector sorts the full source set for its deterministic 10-address sample only after the event reaches both thresholds, clears cooldown, and passes cooldown-capacity checks, immediately before constructing an alert.
+
 At threshold, confidence is `0.75`:
 
 ```text

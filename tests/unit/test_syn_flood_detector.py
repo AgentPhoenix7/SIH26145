@@ -5,6 +5,7 @@ import math
 import pytest
 from pydantic import ValidationError
 
+import sih26145.detection.syn_flood as syn_flood_module
 from sih26145.contracts.alerts import Severity
 from sih26145.contracts.events import TcpSynAttemptV1
 from sih26145.detection.scan_window import StateLimitExceeded, TimestampRegressionError
@@ -127,6 +128,44 @@ def test_window_deduplicates_uids_and_computes_source_entropy() -> None:
     assert snapshot.source_ip_entropy_bits == 1.0
     assert duplicate is None
     assert window.total_events == 4
+
+
+def test_entropy_work_remains_constant_per_observation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_log2 = math.log2
+    log2_calls = 0
+
+    def counting_log2(value: float) -> float:
+        nonlocal log2_calls
+        log2_calls += 1
+        return real_log2(value)
+
+    monkeypatch.setattr(math, "log2", counting_log2)
+    window = SynFloodWindow(window_seconds=10.0)
+
+    for index in range(100):
+        window.observe(
+            flood_event(
+                index,
+                ts=100.0 + index * 0.01,
+                source_count=100,
+            )
+        )
+
+    assert log2_calls <= 400
+
+
+def test_source_samples_are_not_sorted_below_alert_threshold(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unexpected_sort(*_args: object, **_kwargs: object) -> None:
+        pytest.fail("source samples must not be sorted before an alert is eligible")
+
+    monkeypatch.setattr(syn_flood_module, "sorted", unexpected_sort, raising=False)
+    detector = SynFloodDetector(config=small_config())
+
+    assert detector.process(flood_event(0)) is None
 
 
 def test_exact_window_boundary_is_included_then_expires() -> None:

@@ -54,6 +54,8 @@ The following values form typed `alert_v1` SYN-flood evidence. All values descri
 | Target | Destination IP and TCP port owning the rolling window. | One validated IPv4/IPv6 endpoint |
 | Source samples | First 10 unique sources in deterministic IPv4-before-IPv6, numeric-IP order. | At most 10 unique IP addresses |
 
+Runtime state maintains `sum(count * log2(count))` when one source count is incremented, expired, or rolled back, then derives the same Shannon entropy as `log2(events) - sum(count * log2(count)) / events`. This avoids a full source scan for every accepted event. Deterministic source sampling still uses the complete active source set, but sorting is deferred until an alert has passed its thresholds, cooldown, and cooldown-capacity checks.
+
 The default SYN-flood rule is:
 
 ```text
