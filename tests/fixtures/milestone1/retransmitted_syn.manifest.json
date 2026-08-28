@@ -1,0 +1,38 @@
+{
+  "capture_sha256": "8dc8e569c28a4da93f404943c316d3a3aea9a5f1d4b23b8ce8c61f2c49711041",
+  "endpoints": {
+    "destination_ips": [
+      "198.51.100.20"
+    ],
+    "destination_ports": [
+      443
+    ],
+    "source_ips": [
+      "192.0.2.10"
+    ]
+  },
+  "expected_alert_count": 0,
+  "generator": "tools/generate_milestone1_fixtures.py",
+  "generator_version": "1.0.0",
+  "label": "BENIGN_RETRANSMISSION",
+  "packet_count": 20,
+  "parameters": {
+    "attempts": 20,
+    "expected_deduplicated_attempts": 1,
+    "unique_destination_hosts": 1,
+    "unique_destination_ports": 1
+  },
+  "provenance": {
+    "address_standards": [
+      "RFC 5737"
+    ],
+    "kind": "locally_generated_documentation_ranges",
+    "network_activity": "none"
+  },
+  "scenario_id": "retransmitted_syn",
+  "schema_version": "fixture_manifest_v1",
+  "timestamp_range": {
+    "end": "2023-11-14T22:13:24.750000Z",
+    "start": "2023-11-14T22:13:20.000000Z"
+  }
+}

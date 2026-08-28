@@ -1,0 +1,46 @@
+{
+  "capture_sha256": "eed2af01e63e430bc0b7ff59947b3279e46ffc7fbf484cd3ea0b0664de4b25b1",
+  "endpoints": {
+    "destination_ips": [
+      "198.51.100.20"
+    ],
+    "destination_ports": [
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29
+    ],
+    "source_ips": [
+      "192.0.2.10"
+    ]
+  },
+  "expected_alert_count": 0,
+  "generator": "tools/generate_milestone1_fixtures.py",
+  "generator_version": "1.0.0",
+  "label": "BENIGN",
+  "packet_count": 10,
+  "parameters": {
+    "attempts": 10,
+    "unique_destination_hosts": 1,
+    "unique_destination_ports": 10
+  },
+  "provenance": {
+    "address_standards": [
+      "RFC 5737"
+    ],
+    "kind": "locally_generated_documentation_ranges",
+    "network_activity": "none"
+  },
+  "scenario_id": "benign",
+  "schema_version": "fixture_manifest_v1",
+  "timestamp_range": {
+    "end": "2023-11-14T22:13:22.250000Z",
+    "start": "2023-11-14T22:13:20.000000Z"
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "capture_sha256": "1a1a615d3ed57fd929f993057e068daa812d5a19b022a4d7b7355d7892c93266",
+  "endpoints": {
+    "destination_ips": [
+      "198.51.100.20"
+    ],
+    "destination_ports": [
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34
+    ],
+    "source_ips": [
+      "192.0.2.10"
+    ]
+  },
+  "expected_alert_count": 1,
+  "generator": "tools/generate_milestone1_fixtures.py",
+  "generator_version": "1.0.0",
+  "label": "PORT_SCAN_VERTICAL",
+  "packet_count": 20,
+  "parameters": {
+    "attempts": 20,
+    "unique_destination_hosts": 1,
+    "unique_destination_ports": 15
+  },
+  "provenance": {
+    "address_standards": [
+      "RFC 5737"
+    ],
+    "kind": "locally_generated_documentation_ranges",
+    "network_activity": "none"
+  },
+  "scenario_id": "vertical_at_threshold",
+  "schema_version": "fixture_manifest_v1",
+  "timestamp_range": {
+    "end": "2023-11-14T22:13:24.750000Z",
+    "start": "2023-11-14T22:13:20.000000Z"
+  }
+}
