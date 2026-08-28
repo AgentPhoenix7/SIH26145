@@ -2,9 +2,94 @@
 
 Last updated: **2026-08-28 (UTC)**
 
+## Current Handoff State
+
+- **Date:** 2026-08-28 (UTC)
+- **Current branch:** `main`
+- **Current commit:** `459924c3b699a011c06192f526786acd7a5318ea`
+- **Current milestone:** Milestone 2 — Streaming DDoS
+- **Planned Milestone 2 branch:** `feature/milestone-2-ddos`
+- **Planned Milestone 2 worktree:** `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-2-ddos`
+
+### Verified Working
+
+- Milestone 1 is **VERIFIED + MERGED + FROZEN** on `main`; merge commit `459924c3b699a011c06192f526786acd7a5318ea`.
+- Passive deterministic PCAP replay, native Zeek streaming, bounded port-scan state, and validated evidence-bearing `PORT_SCAN` alerts retain the detailed evidence below.
+- The 2026-08-28 `main` sanity check passed: `189 passed`; Ruff lint passed; Ruff confirmed 33 files formatted; strict mypy found no issues in 22 source files.
+
+### Implemented but Not Verified
+
+- None currently recorded.
+
+### In Progress
+
+- Milestone 2 is `PLANNED` and awaiting explicit implementation approval; no DDoS code exists yet.
+- Its branch/worktree has not been created because the intentional deadline-policy and handoff changes are still uncommitted on `main`; preserve and commit that baseline first.
+
+### Known Problems
+
+- DDoS, DNS/DGA ML, API, dashboard, offline inference, and benchmarking are not implemented.
+- Five of the six official threat classes remain unimplemented; no full-coverage claim is valid.
+
+### Deferred
+
+- Tier 2: data exfiltration until the Tier-1 feature-freeze gate is safe.
+- Tier 3: C2 beaconing, TLS/QUIC malware metadata, advanced DNS tunnelling, flow-export ingest, advanced UI/ML, and production infrastructure.
+
+### Important Decisions
+
+- Deadline: 2026-08-31; feature freeze: 2026-08-30.
+- Tier 1 is verified port scan + streaming DDoS + genuine DNS/DGA ML and local inference + standard alerts + minimal API/dashboard + end-to-end proof + benchmark + synchronized docs/PPT.
+- `AGENTS.pre-mvp.md` preserves the pre-deadline-policy repository instructions; `AGENTS.md` now owns the deadline-first execution policy.
+- Milestone 1 may be touched only for a later integration regression or compliance defect.
+- Milestone 2 will reuse `tcp_syn_attempt_v1` and the current Zeek policy; the minimum SYN-flood features do not require a new event schema or Zeek change.
+- Every milestone requires a fresh `feature/milestone-<number>-<slug>` branch and `.worktrees/milestone-<number>-<slug>` linked worktree. Never implement a milestone on `main` or reuse an older milestone worktree.
+
+### Dataset / ML State
+
+- No downloadable official SIH26145 dataset was found as of the recorded 2026-08-26 research.
+- No DNS/DGA dataset has been selected or imported and no genuine model has been trained.
+
+### Model Artifacts
+
+- None. Model persistence, Hugging Face storage, and offline inference are not implemented.
+
+### Benchmark State
+
+- No throughput, CPU, memory, or wall-clock alert-latency percentile has been measured.
+
+### SIH Compliance State
+
+- The current verified path is passive, read-only, incremental, bounded-state, no-decryption, and evidence-producing. See the detailed compliance snapshot below.
+- Current threat coverage remains exactly 1/6: reconnaissance/port scanning.
+
+### Immediate Next Actions
+
+1. Preserve and commit the intentional `AGENTS.md`, `AGENTS.pre-mvp.md`, and `PROGRESS.md` handoff baseline on `main`.
+2. Create `feature/milestone-2-ddos` in `.worktrees/milestone-2-ddos` from that updated `main`, enter it, and run the baseline verification suite.
+3. After explicit plan approval, implement and verify only the SYN-flood slice, including attack/benign fixtures and alert-before-EOS proof.
+4. Merge and freeze Milestone 2; create a separate fresh branch/worktree before starting DNS/DGA ML.
+
+### Commands to Resume
+
+```bash
+git status --short --branch
+git log --oneline --decorate -10
+git check-ignore .worktrees
+git worktree add .worktrees/milestone-2-ddos -b feature/milestone-2-ddos main
+cd .worktrees/milestone-2-ddos
+UV_CACHE_DIR=/tmp/sih26145-mvp-uv-cache uv sync --frozen --group dev
+UV_CACHE_DIR=/tmp/sih26145-mvp-uv-cache uv run pytest
+UV_CACHE_DIR=/tmp/sih26145-mvp-uv-cache uv run ruff check .
+UV_CACHE_DIR=/tmp/sih26145-mvp-uv-cache uv run ruff format --check .
+UV_CACHE_DIR=/tmp/sih26145-mvp-uv-cache uv run mypy src tests tools
+```
+
+Progress status vocabulary is `PLANNED`, `IN PROGRESS`, `IMPLEMENTED`, `TESTED`, `VERIFIED`, `BLOCKED`, or `DEFERRED`. `IMPLEMENTED` means code exists; `TESTED` means the relevant tests actually ran; `VERIFIED` additionally requires observed expected behavior and passed acceptance criteria.
+
 ## Current Phase
 
-**Milestone 1 port-scan vertical slice is implemented and verified. The next priority is SYN/DDoS.**
+**Milestone 1 is verified, merged into `main`, and frozen. Milestone 2 — Streaming DDoS is current.**
 
 The verified path is:
 
@@ -27,8 +112,10 @@ This milestone covers exactly one of the six required threat classes: reconnaiss
 - Versioned feature semantics: `docs/features.md`
 - Requirements traceability: `docs/requirements-traceability.md`
 - Repository: `/home/agntdrgn/WorkSpace/SIH26145`
-- Implementation worktree: `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-1-port-scan`
-- Branch: `feature/milestone-1-port-scan`
+- Current branch: `main`
+- Milestone 1 merge commit: `459924c3b699a011c06192f526786acd7a5318ea`
+- Historical implementation worktree: `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-1-port-scan`
+- Historical implementation branch: `feature/milestone-1-port-scan`
 - Branch point from `main`: `59afa18` (`docs: approve milestone one implementation plan`)
 - Tasks 1-8 reviewed implementation base: `3ca426c` (`fix: preserve safe replay failures`)
 - Required Task 9 formatter-only cleanup: `1be64d9` (`style: apply Ruff formatting`)
@@ -92,6 +179,18 @@ The public native command is `zeek -D -b -r <pcap> <policy>`. `-D` makes identic
 - [x] Requirements traceability, feature documentation, PPT facts, and this handoff are current.
 
 ## Exact Evidence Commands
+
+The following cheap sanity check was run from clean `main` on 2026-08-28 after the deadline-policy migration. The first sandboxed `uv sync` attempt failed only because DNS/network access was restricted; rerunning the same locked sync with dependency-download access succeeded, after which every check passed:
+
+```bash
+UV_CACHE_DIR=/tmp/sih26145-mvp-uv-cache uv sync --frozen --group dev
+UV_CACHE_DIR=/tmp/sih26145-mvp-uv-cache uv run pytest
+UV_CACHE_DIR=/tmp/sih26145-mvp-uv-cache uv run ruff check .
+UV_CACHE_DIR=/tmp/sih26145-mvp-uv-cache uv run ruff format --check .
+UV_CACHE_DIR=/tmp/sih26145-mvp-uv-cache uv run mypy src tests tools
+```
+
+Observed results: `189 passed in 15.13s`; `All checks passed!`; `33 files already formatted`; `Success: no issues found in 22 source files`. This accepts the merged Milestone 1 implementation as the current frozen baseline without repeating its historical manual verification campaign.
 
 The managed sandbox required only a cache-location override; it does not change project behavior. The following exact commands were run from the worktree after the post-review lifecycle fix:
 
@@ -244,22 +343,28 @@ PPT evidence:                 Verified facts recorded; screenshots and performan
 - No official downloadable SIH26145 dataset was found as of 2026-08-26; every future corpus or scenario needs licence and provenance review.
 - No API/dashboard, genuine ML artifact, offline model inference, screenshot, or final presentation exists yet.
 
-## Immediate Next Objective: SYN/DDoS
+## Milestone 2 Minimum Plan: Streaming SYN-DDoS (`PLANNED`)
 
-Move directly to the next MUST-HAVE class rather than over-polishing scan detection:
+The plan is deliberately limited to SYN flood and awaits explicit implementation approval:
 
-1. Define the smallest versioned passive event/features needed for SYN-flood rate, response ratio, destination concentration, and source/spoofing-characteristic evidence while preserving runtime parity.
-2. Add bounded rolling aggregate state on the existing incremental replay path, with named limits and capture-time expiry.
-3. Create isolated, deterministic benign and controlled SYN-flood scenarios with ground-truth manifests; do not target any external or unauthorized endpoint.
-4. Implement an explainable baseline detector, validate typed common alerts, and prove attack versus benign behavior before considering UDP reflection/amplification.
-5. Record actual evidence in traceability, features, evaluation, PPT notes, and this handoff.
+1. Reuse `tcp_syn_attempt_v1` unchanged. It already supplies capture time, UID, source, destination endpoint, and TCP transport; the Zeek policy remains passive and unchanged.
+2. Add capture-time state keyed by destination `(IP, port)`, with UID deduplication, expiry, exact-boundary behavior, hard limits for targets/events/UIDs/cooldowns, and named deterministic failures.
+3. Measure per target: deduplicated SYN count, fixed-window SYN rate, unique sources, Shannon source-IP entropy, observed span, and deterministic source samples. Entropy is evidence of source-distribution characteristics, not proof of spoofing.
+4. Trigger `SYN_FLOOD` when both configurable minimum SYN events and minimum unique sources are reached for one target in the window. Use a deterministic heuristic confidence based on threshold strength; do not call it a calibrated probability.
+5. Extend `alert_v1` with typed SYN-flood evidence while preserving existing port-scan serialization and validation. Use the triggering Zeek UID as `flow_id`, the triggering source as the observed source, and the target endpoint inside measured evidence.
+6. Add a small synchronous detector pipeline because one event must feed both the frozen port-scan detector and the new SYN-flood detector and may produce zero, one, or two alerts before the next stream record.
+7. Generate offline RFC 5737 PCAP fixtures and manifests for benign distributed traffic, below-threshold traffic, and an exact-threshold multi-source SYN flood; no packet is transmitted.
+8. Test configuration, strict alert evidence, entropy, expiry, deduplication, bounds, rollback/cooldown, exact thresholds, pipeline multi-alert behavior, native Zeek replay, benign no-alert behavior, and alert-before-EOS ordering.
+9. Run the focused and full suites, replay real benign and flood fixtures, validate actual alert JSON, then update only affected README, architecture, feature, traceability, PPT, and progress documentation.
+10. Freeze Milestone 2 immediately after acceptance; UDP reflection/amplification remains deferred unless later schedule review proves it cheap and Tier 1 stays safe.
 
-After SYN/DDoS, priority remains passive DNS/DGA or tunnelling data and the genuine trained/deployed ML component, then exfiltration, with C2 as SHOULD HAVE and encrypted-session metadata as stretch. API/dashboard and measured end-to-end evaluation remain required before submission.
+After SYN/DDoS, move directly to passive DNS/DGA data and the genuine trained/deployed ML component, then local inference, API/dashboard integration, end-to-end evaluation, benchmark, and submission evidence. Exfiltration remains Tier 2 until the complete Tier-1 gate is safe; C2 and encrypted-session metadata remain Tier 3.
 
 ## Handoff Checklist
 
 1. Confirm the repository/worktree and inspect `git status`, diffs, and recent commits.
 2. Read `AGENTS.md`, `docs/problem.md`, this file, and relevant source/tests completely.
-3. Treat this as a verified snapshot, not a substitute for fresh commands.
-4. Continue SYN/DDoS as the highest-priority milestone and preserve all passive/no-decryption/bounded-state invariants.
-5. Never claim a class, model, dashboard, metric, screenshot, or benchmark without actual current evidence.
+3. Before implementation, confirm the current milestone uses its own new branch/worktree and record both here.
+4. Treat this as a verified snapshot, not a substitute for fresh commands.
+5. Continue SYN/DDoS as the highest-priority milestone and preserve all passive/no-decryption/bounded-state invariants.
+6. Never claim a class, model, dashboard, metric, screenshot, or benchmark without actual current evidence.

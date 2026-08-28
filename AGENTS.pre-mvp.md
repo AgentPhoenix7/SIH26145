@@ -10,33 +10,6 @@ The user-imposed MVP and PPT deadline is **2026-08-31**, even if an official pag
 
 Optimize every decision for a working, demonstrable, measurable, explainable, reproducible, and defensible MVP. This is not an enterprise NDR/IDS project. Do not generate the whole system blindly or add speculative infrastructure.
 
-Milestone 1 port-scan detection is **VERIFIED, MERGED into `main` at `459924c3b699a011c06192f526786acd7a5318ea`, and FROZEN**. Preserve its evidence and do not redesign it unless later integration exposes a real regression or compliance defect.
-
-## Deadline Execution Priority
-
-Use this order when deciding what to do before feature freeze:
-
-1. Official SIH26145 compliance.
-2. Finish the submission-ready MVP by 2026-08-31.
-3. Protect the 2026-08-30 feature freeze.
-4. Complete the Tier-1 end-to-end pipeline.
-5. Keep `PROGRESS.md` current.
-6. Integrate genuine ML.
-7. Correctness.
-8. Streaming behavior.
-9. Bounded state.
-10. Evidence-bearing alerts.
-11. Verification.
-12. End-to-end demo reliability.
-13. Measured benchmark.
-14. Documentation and PPT evidence.
-15. Minimize implementation time.
-16. Minimize Codex usage.
-17. Additional threat coverage.
-18. Refactoring.
-19. Architectural sophistication.
-20. Experimental sophistication.
-
 ## Sources of Truth
 
 Use this order when repository documents disagree:
@@ -55,28 +28,13 @@ At the beginning of every new conversation or implementation slice:
 
 1. Print/confirm the working directory.
 2. Read this file completely.
-3. Read `docs/problem.md`, `PROGRESS.md`, and `docs/architecture.md` completely.
+3. Read `docs/problem.md` and `PROGRESS.md` completely.
 4. Inspect `git status`, relevant diffs, and recent commits.
 5. Read the relevant source, tests, and supporting docs before proposing edits.
 6. Verify drift-prone environment facts when they matter; do not trust an old progress snapshot blindly.
 7. Continue the current highest-priority milestone instead of restarting or broadening the project.
 
 Preserve unrelated or user-authored changes. Do not overwrite, revert, or delete them. Never push to a remote unless the user explicitly requests it.
-
-## Milestone Branch and Worktree Policy
-
-Every implementation milestone must use a new focused branch and a new linked worktree. Do not implement a new milestone directly on `main`, reuse a previous milestone branch, or reuse a previous milestone worktree.
-
-Before milestone implementation begins:
-
-1. Ensure the intended handoff and policy changes are committed on `main`; never create the milestone branch from a stale commit while required baseline changes remain only in the working tree.
-2. Confirm `main` is the intended base and inspect its status, diff, and recent commits.
-3. Verify `.worktrees/` is ignored by Git.
-4. Create `feature/milestone-<number>-<slug>` with linked worktree `.worktrees/milestone-<number>-<slug>` from the updated `main` baseline.
-5. Enter that worktree, synchronize the locked environment, and run the normal baseline verification suite before implementation.
-6. Record the active branch, worktree path, base commit, and verification result in `PROGRESS.md`.
-
-Keep one milestone per branch/worktree. After verification and merge, freeze that milestone and treat its branch/worktree as historical; the next milestone receives a fresh branch/worktree. Any exception requires the user's explicit current instruction.
 
 ## Non-Negotiable Operational Invariants
 
@@ -118,7 +76,7 @@ Every alert must answer why it fired using actual measured values. The common al
 
 Prefer source, destination, protocol, severity, detector, model version, and observation window when applicable. Validate confidence to `[0, 1]`. Never use example numbers as measured output.
 
-## Official Threat Coverage and Deadline Tiers
+## Required Threat Coverage and MVP Priority
 
 The official problem requires all six threat classes:
 
@@ -129,13 +87,13 @@ The official problem requires all six threat classes:
 5. Reconnaissance and port scanning.
 6. Data exfiltration using asymmetric volume and behavioral anomalies.
 
-The official scope remains unchanged, but the remaining implementation order is deadline-driven:
+Deadline priority:
 
-- **Tier 1 — feature-freeze gate:** verified port scan; streaming SYN/DDoS; a provenance-recorded DNS/DGA dataset; one genuinely trained, evaluated, persisted, and locally integrated DNS/DGA model; standard alerts; minimal API; bounded alert storage; minimal dashboard; reproducible end-to-end demo; streaming proof; benchmark; synchronized documentation and PPT evidence.
-- **Tier 2:** data exfiltration, only after every Tier-1 gate is safe.
-- **Tier 3:** C2 beaconing, TLS/QUIC malware metadata, advanced DNS tunnelling, flow-export ingest, advanced UI/ML, and production infrastructure.
+- **MUST HAVE:** port scanning, SYN/DDoS, DNS tunnelling and/or DGA, and data exfiltration.
+- **SHOULD HAVE:** C2 beaconing.
+- **STRETCH:** encrypted-session malware metadata.
 
-This changes execution priority, not the official problem statement. Label every unimplemented class `DEFERRED`, `FUTURE WORK`, or `NOT IMPLEMENTED`; never imply full threat coverage. A complete port-scan + streaming-DDoS + DNS/DGA-ML prototype is preferable to six incomplete detectors.
+This priority controls implementation order, not truth claims. Keep incomplete coverage clearly labelled; never present a proxy detector as coverage for a different required class. Slowloris appears in dataset guidance but must not displace a named threat class.
 
 ## Target Architecture
 
@@ -247,12 +205,6 @@ If a simpler dashboard materially improves delivery probability, discuss and rec
 
 Thresholds that reflect deployment behavior must be configurable and documented. Fixed protocol/schema invariants should remain code-owned rather than becoming unnecessary configuration.
 
-## Usage and Approval Controls
-
-After the initial mandatory context read, inspect only files relevant to the current milestone. Prefer targeted reads, existing abstractions, small diffs, focused tests, and actual execution. Avoid repeated repository-wide exploration, historical Milestone 1 re-audits, giant speculative plans, cosmetic refactors, and optional-feature investigation.
-
-Do not implement multiple major milestones automatically. Default to inspect, plan the current milestone, report, and stop. After explicit approval, implement, test, verify, synchronize affected documentation and `PROGRESS.md`, report, and stop. Routine handoff maintenance, required backups, and formatting caused by the current edit do not need a separate approval cycle.
-
 ## Incremental Engineering Workflow
 
 For each meaningful slice:
@@ -274,9 +226,24 @@ Do not claim a build, test, detector, model, benchmark, or demo passes unless th
 
 Use `git status` before substantial work. Keep changes logically scoped and do not include unrelated work in commits. Never push without an explicit request.
 
-## Milestone Freeze Rule
+## Milestone 1 Acceptance
 
-Milestone 1's historical acceptance evidence remains in `PROGRESS.md`; do not put it back on the critical path. For each new milestone, stop polishing once the minimum implementation, focused tests, attack and benign observations, integration, SIH compliance, documentation, `PROGRESS.md`, and PPT evidence are verified. Merge and freeze it, then create a fresh branch/worktree for the next Tier-1 blocker.
+Milestone 1 is complete only when:
+
+1. A PCAP passes through Zeek.
+2. Structured events are produced.
+3. Python consumes events incrementally.
+4. Rolling scan state works.
+5. State expires and has cardinality limits.
+6. Scan traffic raises an alert.
+7. Normal traffic does not trivially raise the same alert.
+8. The common alert schema validates.
+9. The alert contains actual supporting evidence.
+10. Important logic has focused tests.
+11. The workflow is reproducible.
+12. Requirements traceability and progress are updated.
+
+Once reliable enough, move to DDoS rather than over-polishing scan detection.
 
 ## Performance, Documentation, and Submission Evidence
 
