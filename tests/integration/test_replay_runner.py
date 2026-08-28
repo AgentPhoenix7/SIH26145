@@ -100,7 +100,11 @@ def test_state_limit_failure_keeps_its_named_invariant_and_reaps_child(
 ) -> None:
     pid_path = tmp_path / "pid"
     detector = PortScanDetector(
-        config=ScanConfig(),
+        config=ScanConfig(
+            minimum_attempts=2,
+            minimum_unique_destination_ports=2,
+            minimum_unique_destination_hosts=2,
+        ),
         limits=StateLimits(
             max_active_sources=2,
             max_attempts_per_source=2,

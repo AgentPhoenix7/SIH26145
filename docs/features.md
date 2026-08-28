@@ -46,6 +46,8 @@ The watermark is the greatest accepted capture timestamp; allowed lateness is ze
 
 For a 10-second window at watermark `t`, attempts with timestamps lower than `t - 10` expire. An attempt exactly at `t - 10` remains included and expires only when the watermark advances beyond that boundary. UID deduplication similarly retains a UID at exactly its 60-second TTL boundary and permits reuse only after the boundary.
 
+Configuration validation keeps these features internally achievable and finite. The scan window cannot exceed the UID TTL, every attempt/fan-out threshold must fit within the effective attempt capacity, and the maximum capacity divided by the window must be finite. Under default limits, the effective capacity is 4,096 attempts and the maximum window is 60 seconds.
+
 Cooldown is capture-time based and source scoped. A source is suppressed while `event_ts - last_alert_ts < cooldown_seconds`; it may alert again exactly at the configured boundary. Cooldown entries expire and are hard-limited to 4,096. The other code-owned limits are 4,096 active sources, 4,096 attempts per source, 100,000 attempts overall, and 200,000 retained UIDs. An event that would exceed a limit fails with the named invariant and does not silently evict or partially insert evidence.
 
 ## Confidence and Severity

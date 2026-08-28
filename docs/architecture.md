@@ -147,7 +147,7 @@ Expiry updates all counters, so unique counts always describe the current window
 
 Expiry runs before a limit check. If a valid event would still exceed a limit, the run fails with a named resource-limit diagnostic instead of silently evicting evidence or growing memory without bound. These are safety constants for the first prototype, not user-facing tuning knobs. Their actual memory cost must be measured before claiming a throughput capacity.
 
-The first occurrence of a UID within its 60-second TTL enters the source window. Further occurrences do not change attempt counts or fan-out evidence. The deduplication lifetime deliberately exceeds the scan window so delayed TCP retransmissions do not become fresh attempts.
+The first occurrence of a UID within its 60-second TTL enters the source window. Further occurrences do not change attempt counts or fan-out evidence. Detector construction rejects a scan window longer than the effective UID TTL, so a UID cannot expire while its original attempt remains active and delayed TCP retransmissions cannot become fresh attempts in the same window.
 
 Cooldown state is a separate expiry-ordered `source IP -> last alert timestamp` map. Entries expire at `last alert timestamp + cooldown`; expiry therefore permits a re-alert exactly at the configured cooldown boundary. The map is limited to 4,096 entries and fails without partial mutation if a new alert would exceed that limit after expiry.
 
@@ -163,7 +163,7 @@ Initial configurable defaults are:
 | Minimum unique destination hosts | 15 |
 | Per-source alert cooldown | 30 seconds |
 
-Milestone 1 exposes these values as replay CLI options that populate one validated scan-configuration record; it does not introduce a configuration file. Durations must be finite, the window must be positive, cooldown must be non-negative, and all count thresholds must be positive integers.
+Milestone 1 exposes these values as replay CLI options that populate one validated scan-configuration record; it does not introduce a configuration file. Durations must be finite, the window must be positive, cooldown must be non-negative, and all count thresholds must be positive integers. Detector construction also rejects a window that could make the maximum derived attempt rate non-finite, a window longer than the UID deduplication TTL, or any threshold above the effective per-source attempt capacity. That capacity is the minimum of the per-source attempt, total-attempt, and retained-UID limits; it is 4,096 with the defaults. Invalid combinations exit `2` before Zeek starts.
 
 A source triggers `PORT_SCAN` when, within the active window:
 

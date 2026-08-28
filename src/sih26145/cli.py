@@ -68,11 +68,11 @@ def emit_alert(alert: AlertV1) -> None:
 
 
 def safe_diagnostic(
-    exc: ValidationError | ReplayError | StateLimitExceeded,
+    exc: ValidationError | ValueError | ReplayError | StateLimitExceeded,
 ) -> str:
     """Describe a trusted failure invariant without echoing untrusted input."""
 
-    if isinstance(exc, ValidationError):
+    if isinstance(exc, (ValidationError, ValueError)):
         return "configuration_error: invalid_scan_configuration"
     if isinstance(exc, ReplayError):
         return f"replay_error: {exc.diagnostic}"
@@ -95,11 +95,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             minimum_unique_destination_hosts=args.min_unique_hosts,
             cooldown_seconds=args.cooldown_seconds,
         )
-    except ValidationError as exc:
+        detector = PortScanDetector(config=config)
+    except (ValidationError, ValueError) as exc:
         print(safe_diagnostic(exc), file=sys.stderr, flush=True)
         return 2
 
-    detector = PortScanDetector(config=config)
     try:
         run_replay(args.pcap, detector, emit_alert)
     except ReplayError as exc:

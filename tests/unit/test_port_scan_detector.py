@@ -113,10 +113,59 @@ def test_invalid_scan_configuration_is_rejected(field: str, value: object) -> No
         ScanConfig.model_validate({field: value})
 
 
+def test_detector_rejects_window_that_can_overflow_attempt_rate() -> None:
+    config = ScanConfig(
+        window_seconds=1e-309,
+        minimum_attempts=1,
+        minimum_unique_destination_ports=1,
+        minimum_unique_destination_hosts=1,
+    )
+
+    with pytest.raises(ValueError, match="finite attempt rate"):
+        PortScanDetector(config=config)
+
+
+@pytest.mark.parametrize(
+    "threshold_field",
+    [
+        "minimum_attempts",
+        "minimum_unique_destination_ports",
+        "minimum_unique_destination_hosts",
+    ],
+)
+def test_detector_rejects_threshold_above_effective_state_capacity(
+    threshold_field: str,
+) -> None:
+    config_values = {
+        "minimum_attempts": 2,
+        "minimum_unique_destination_ports": 2,
+        "minimum_unique_destination_hosts": 2,
+        threshold_field: 3,
+    }
+    limits = StateLimits(
+        max_active_sources=10,
+        max_attempts_per_source=5,
+        max_total_attempts=4,
+        max_dedup_uids=2,
+        max_cooldown_sources=10,
+        dedup_ttl_seconds=60.0,
+    )
+
+    with pytest.raises(ValueError, match="state capacity"):
+        PortScanDetector(config=ScanConfig.model_validate(config_values), limits=limits)
+
+
+def test_detector_rejects_window_longer_than_uid_deduplication_ttl() -> None:
+    config = ScanConfig(window_seconds=60.000001)
+
+    with pytest.raises(ValueError, match="deduplication TTL"):
+        PortScanDetector(config=config)
+
+
 def test_cooldown_suppresses_then_realerts_at_exact_boundary() -> None:
     detector = PortScanDetector(
         config=ScanConfig(
-            window_seconds=100.0,
+            window_seconds=60.0,
             minimum_attempts=2,
             minimum_unique_destination_ports=2,
             minimum_unique_destination_hosts=2,
@@ -139,7 +188,7 @@ def test_cooldown_suppresses_then_realerts_at_exact_boundary() -> None:
 def test_cooldown_state_expires_on_later_accepted_event() -> None:
     detector = PortScanDetector(
         config=ScanConfig(
-            window_seconds=100.0,
+            window_seconds=60.0,
             minimum_attempts=1,
             minimum_unique_destination_ports=1,
             minimum_unique_destination_hosts=1,

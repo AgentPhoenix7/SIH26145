@@ -44,6 +44,8 @@ Alert JSON Lines are written only to stdout and flushed immediately. Child stder
 
 Default detection requires at least 20 deduplicated SYN attempts in a 10-second capture-time window plus fan-out to at least 15 destination ports or 15 destination hosts. Confidence is an explainable heuristic score, not calibrated probability or ML output.
 
+Configuration is rejected before Zeek starts if the window is too small to keep the maximum derived attempt rate finite, exceeds the 60-second UID deduplication TTL, or any threshold exceeds the effective state capacity. With the default limits, each threshold may be at most 4,096.
+
 See [architecture](docs/architecture.md), [feature definitions](docs/features.md), [requirements traceability](docs/requirements-traceability.md), and [current progress](PROGRESS.md) for exact semantics and evidence.
 
 Frontend work has not started. **Bun** is reserved for later React/TypeScript frontend dependencies and scripts; npm, pnpm, and Yarn are not used.

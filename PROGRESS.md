@@ -64,6 +64,7 @@ The public native command is `zeek -D -b -r <pcap> <policy>`. `-D` makes identic
 - The capture-time scan window deduplicates Zeek UIDs, tracks attempts/hosts/ports/endpoints, expires old state, and rejects timestamp regression before mutation.
 - Hard limits cover line length, active sources, per-source and global attempts, retained UIDs, cooldown sources, stderr retention, and child process shutdown. Pre-EOS failure cleanup has a two-second terminate-to-kill grace; after EOS, child exit, pipe completion, drainer shutdown, and direct-child cleanup share one absolute two-second deadline with no fresh cleanup budget.
 - The detector uses configurable attempt/fan-out thresholds, exact-boundary expiry and cooldown semantics, deterministic endpoint samples, and typed measured evidence.
+- Detector construction rejects windows that can overflow derived rates, thresholds above effective state capacity, and windows longer than the UID deduplication TTL; the CLI reports these as invalid configuration before Zeek starts.
 - Alert span evidence is derived from the same microsecond-normalized UTC timestamps as `AlertWindow`, preventing ordinary large-epoch float subtraction error from discarding a threshold alert during strict schema validation.
 - The CLI emits canonical alert JSON only on stdout; child stderr is privately retained only as the byte-exact latest 64 KiB and is never echoed. CLI stderr contains only trusted safe diagnostics.
 - CLI status is `0` for success, `2` for invalid configuration/path, and `1` for runtime/process/contract/timestamp/callback/state-limit failure.
@@ -141,6 +142,23 @@ UV_CACHE_DIR=/tmp/sih26145-review-uv-cache uv run python -c 'from pathlib import
 ```
 
 The focused large-epoch, one-microsecond regression test was observed failing before the fix and passing after it. The full suite then reported `175 passed`; Ruff lint, Ruff format, strict mypy, and deterministic fixture checks passed; native replay emitted one schema-valid scan alert with a `4.75`-second span while benign replay emitted zero bytes.
+
+Additional P2 configuration-review evidence on 2026-08-28:
+
+```bash
+UV_CACHE_DIR=/tmp/sih26145-p2-uv-cache uv run pytest
+UV_CACHE_DIR=/tmp/sih26145-p2-uv-cache uv run ruff check .
+UV_CACHE_DIR=/tmp/sih26145-p2-uv-cache uv run ruff format --check .
+UV_CACHE_DIR=/tmp/sih26145-p2-uv-cache uv run mypy src tests tools
+UV_CACHE_DIR=/tmp/sih26145-p2-uv-cache uv run python tools/generate_milestone1_fixtures.py --output tests/fixtures/milestone1 --check
+UV_CACHE_DIR=/tmp/sih26145-p2-uv-cache uv run sih26145-replay tests/fixtures/milestone1/benign.pcap --window-seconds 1e-309
+UV_CACHE_DIR=/tmp/sih26145-p2-uv-cache uv run sih26145-replay tests/fixtures/milestone1/benign.pcap --min-attempts 4097
+UV_CACHE_DIR=/tmp/sih26145-p2-uv-cache uv run sih26145-replay tests/fixtures/milestone1/benign.pcap --window-seconds 61
+UV_CACHE_DIR=/tmp/sih26145-p2-uv-cache uv run sih26145-replay tests/fixtures/milestone1/vertical_at_threshold.pcap > /tmp/sih26145-p2-scan-alerts.jsonl
+UV_CACHE_DIR=/tmp/sih26145-p2-uv-cache uv run sih26145-replay tests/fixtures/milestone1/benign.pcap > /tmp/sih26145-p2-benign-alerts.jsonl
+```
+
+The rate-overflow, unreachable-threshold, and short-UID-retention cases were each observed failing before their constructor checks were added. The full suite reported `185 passed`; all three invalid CLI examples exited `2` with the fixed configuration diagnostic before replay; Ruff, strict mypy, fixture checks, native threshold replay, and native benign replay passed.
 
 ## Current SIH26145 Compliance Snapshot
 

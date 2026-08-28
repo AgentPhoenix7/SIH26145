@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections import OrderedDict
 from datetime import UTC, datetime
 from typing import Annotated
@@ -42,8 +43,26 @@ class PortScanDetector:
     """Apply the configured fanout rule and emit typed scan alerts."""
 
     def __init__(self, *, config: ScanConfig, limits: StateLimits | None = None) -> None:
+        effective_limits = limits if limits is not None else StateLimits()
+        max_source_attempts = min(
+            effective_limits.max_attempts_per_source,
+            effective_limits.max_total_attempts,
+            effective_limits.max_dedup_uids,
+        )
+        if not math.isfinite(max_source_attempts / config.window_seconds):
+            raise ValueError("window_seconds is too small for a finite attempt rate")
+        thresholds = (
+            config.minimum_attempts,
+            config.minimum_unique_destination_ports,
+            config.minimum_unique_destination_hosts,
+        )
+        if any(threshold > max_source_attempts for threshold in thresholds):
+            raise ValueError("scan threshold exceeds effective state capacity")
+        if config.window_seconds > effective_limits.dedup_ttl_seconds:
+            raise ValueError("window_seconds exceeds the UID deduplication TTL")
+
         self.config = config
-        self.limits = limits if limits is not None else StateLimits()
+        self.limits = effective_limits
         self._window = PortScanWindow(
             window_seconds=config.window_seconds,
             limits=self.limits,
