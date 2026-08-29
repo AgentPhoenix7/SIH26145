@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 
 from sih26145.contracts.events import (
+    DnsEventV1,
     EndOfStreamV1,
     StreamContractError,
     TcpSynAttemptV1,
@@ -29,6 +30,25 @@ def syn_payload(**overrides: Any) -> dict[str, Any]:
     return payload
 
 
+def dns_payload(**overrides: Any) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "schema_version": "dns_event_v1",
+        "event_type": "dns_query",
+        "ts": 1_700_000_000.25,
+        "uid": "CDnsQuery0000001",
+        "src_ip": "192.0.2.10",
+        "src_port": 53_000,
+        "dst_ip": "198.51.100.53",
+        "dst_port": 53,
+        "transport": "udp",
+        "query_name": "Example.COM.",
+        "query_type": 1,
+        "query_class": 1,
+    }
+    payload.update(overrides)
+    return payload
+
+
 def json_line(payload: object) -> bytes:
     return json.dumps(payload, separators=(",", ":"), allow_nan=True).encode() + b"\n"
 
@@ -46,6 +66,72 @@ def test_parse_valid_ipv6_syn_line() -> None:
 
     assert isinstance(record, TcpSynAttemptV1)
     assert str(record.src_ip) == "2001:db8::10"
+
+
+def test_parse_valid_dns_query_normalizes_name() -> None:
+    record = parse_stream_line(json_line(dns_payload()))
+
+    assert isinstance(record, DnsEventV1)
+    assert record.query_name == "example.com"
+    assert record.transport == "udp"
+
+
+def test_parse_valid_ipv6_tcp_dns_query() -> None:
+    record = parse_stream_line(
+        json_line(
+            dns_payload(
+                src_ip="2001:db8::10",
+                dst_ip="2001:db8::53",
+                transport="tcp",
+                query_name="a-b.example",
+                query_type=28,
+            )
+        )
+    )
+
+    assert isinstance(record, DnsEventV1)
+    assert str(record.src_ip) == "2001:db8::10"
+    assert record.transport == "tcp"
+
+
+@pytest.mark.parametrize(
+    "query_name",
+    [
+        "",
+        ".",
+        "a..example",
+        "-bad.example",
+        "bad-.example",
+        f"{'a' * 64}.example",
+        f"{'a' * 63}.{'b' * 63}.{'c' * 63}.{'d' * 62}",
+        "_service._udp.example",
+        "non ascii.example",
+        "caf\N{LATIN SMALL LETTER E WITH ACUTE}.example",
+    ],
+)
+def test_invalid_dns_query_names_fail(query_name: str) -> None:
+    with pytest.raises(StreamContractError):
+        parse_stream_line(json_line(dns_payload(query_name=query_name)))
+
+
+@pytest.mark.parametrize("field", ["query_type", "query_class"])
+@pytest.mark.parametrize("value", [0, 65_536, 1.5, "1", True])
+def test_dns_codes_are_strict_positive_16_bit_values(field: str, value: object) -> None:
+    with pytest.raises(StreamContractError):
+        parse_stream_line(json_line(dns_payload(**{field: value})))
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"schema_version": "dns_event_v2"},
+        {"transport": "icmp"},
+        {"unexpected": "field"},
+    ],
+)
+def test_invalid_dns_fields_fail(overrides: dict[str, Any]) -> None:
+    with pytest.raises(StreamContractError):
+        parse_stream_line(json_line(dns_payload(**overrides)))
 
 
 @pytest.mark.parametrize("port", [-1, 65_536, 1.5, "443", True])
