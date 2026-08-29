@@ -2,7 +2,39 @@ from __future__ import annotations
 
 from typing import Any
 
-from sih26145.contracts.events import TcpSynAttemptV1
+from sih26145.contracts.events import DnsEventV1, TcpSynAttemptV1
+
+
+def dns(
+    *,
+    ts: float = 100.0,
+    uid: str = "dns-uid-0",
+    src_ip: str = "192.0.2.10",
+    src_port: int = 53_000,
+    dst_ip: str = "198.51.100.53",
+    dst_port: int = 53,
+    transport: str = "udp",
+    query_name: str = "example.com",
+    query_type: int = 1,
+    query_class: int = 1,
+    **overrides: Any,
+) -> DnsEventV1:
+    payload: dict[str, Any] = {
+        "schema_version": "dns_event_v1",
+        "event_type": "dns_query",
+        "ts": ts,
+        "uid": uid,
+        "src_ip": src_ip,
+        "src_port": src_port,
+        "dst_ip": dst_ip,
+        "dst_port": dst_port,
+        "transport": transport,
+        "query_name": query_name,
+        "query_type": query_type,
+        "query_class": query_class,
+    }
+    payload.update(overrides)
+    return DnsEventV1.model_validate(payload)
 
 
 def syn(

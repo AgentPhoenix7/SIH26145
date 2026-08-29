@@ -10,9 +10,11 @@ import sih26145.cli as cli
 import sih26145.replay as replay
 from sih26145.contracts.alerts import AlertV1, SynFloodEvidence
 from sih26145.contracts.events import EndOfStreamV1, parse_stream_line
+from sih26145.detection.dga import DgaDetector
 from sih26145.detection.pipeline import DetectionPipeline
 from sih26145.detection.port_scan import PortScanDetector, ScanConfig
 from sih26145.detection.syn_flood import SynFloodConfig, SynFloodDetector
+from sih26145.ml.dga_model import DgaModel
 from sih26145.replay import ReplayResult, run_replay
 
 FIXTURES = Path("tests/fixtures/milestone2").resolve()
@@ -22,6 +24,7 @@ def detector_pipeline() -> DetectionPipeline:
     return DetectionPipeline(
         port_scan=PortScanDetector(config=ScanConfig()),
         syn_flood=SynFloodDetector(config=SynFloodConfig()),
+        dga=DgaDetector(model=DgaModel.load_packaged()),
     )
 
 

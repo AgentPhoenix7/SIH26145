@@ -99,6 +99,9 @@ class DnsEventV1(StrictModel):
         return normalize_dns_name(value)
 
 
+NetworkEvent = TcpSynAttemptV1 | DnsEventV1
+
+
 class EndOfStreamV1(StrictModel):
     """Final record proving how many SYN records Zeek emitted."""
 

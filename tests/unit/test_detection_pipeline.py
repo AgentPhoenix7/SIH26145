@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from sih26145.detection.dga import DgaDetector
 from sih26145.detection.pipeline import DetectionPipeline
 from sih26145.detection.port_scan import PortScanDetector, ScanConfig
 from sih26145.detection.syn_flood import SynFloodConfig, SynFloodDetector
-from tests.factories import syn
+from sih26145.ml.dga_model import DgaModel
+from tests.factories import dns, syn
 
 
 def pipeline(*, scan_attempts: int, flood_events: int) -> DetectionPipeline:
@@ -21,6 +23,7 @@ def pipeline(*, scan_attempts: int, flood_events: int) -> DetectionPipeline:
                 minimum_unique_sources=1,
             )
         ),
+        dga=DgaDetector(model=DgaModel.load_packaged()),
     )
 
 
@@ -47,3 +50,20 @@ def test_pipeline_returns_an_empty_batch_when_no_rule_crosses() -> None:
     alerts = detector_pipeline.process(syn(uid="none"))
 
     assert alerts == ()
+
+
+def test_dns_event_routes_only_to_dga_detector() -> None:
+    detector_pipeline = pipeline(scan_attempts=1, flood_events=1)
+
+    alerts = detector_pipeline.process(dns(query_name="x9q7z8v6k5j4m3n2.example"))
+
+    assert [alert.threat_class for alert in alerts] == ["DGA"]
+
+
+def test_benign_dns_event_returns_empty_without_mutating_syn_order() -> None:
+    detector_pipeline = pipeline(scan_attempts=1, flood_events=1)
+
+    assert detector_pipeline.process(dns(query_name="example.com")) == ()
+    alerts = detector_pipeline.process(syn(uid="both-after-dns"))
+
+    assert [alert.threat_class for alert in alerts] == ["PORT_SCAN", "SYN_FLOOD"]

@@ -277,7 +277,15 @@ def run_command(
                     break
 
                 try:
-                    produced = None if isinstance(record, DnsEventV1) else detector.process(record)
+                    produced: AlertV1 | tuple[AlertV1, ...] | None
+                    if isinstance(record, DnsEventV1):
+                        produced = (
+                            detector.process(record)
+                            if isinstance(detector, DetectionPipeline)
+                            else None
+                        )
+                    else:
+                        produced = detector.process(record)
                 except TimestampRegressionError:
                     raise ReplayError("timestamp_regression", stderr_tail) from None
                 except StateLimitExceeded:
