@@ -18,6 +18,7 @@ from typing import BinaryIO, cast
 from sih26145.contracts.alerts import AlertV1
 from sih26145.contracts.events import (
     MAX_LINE_BYTES,
+    DnsEventV1,
     EndOfStreamV1,
     StreamContractError,
     TcpSynAttemptV1,
@@ -143,7 +144,7 @@ def _read_bounded_line(
             inactivity_deadline = time.monotonic() + PROCESS_WAIT_SECONDS
 
 
-def _parse_record(raw: bytes, tail: _StderrTail) -> TcpSynAttemptV1 | EndOfStreamV1:
+def _parse_record(raw: bytes, tail: _StderrTail) -> TcpSynAttemptV1 | DnsEventV1 | EndOfStreamV1:
     try:
         return parse_stream_line(raw)
     except StreamContractError:
@@ -274,9 +275,19 @@ def run_command(
                     eos = record
                     post_eos_deadline = time.monotonic() + PROCESS_WAIT_SECONDS
                     break
+                if last_event_ts is not None and record.ts < last_event_ts:
+                    raise ReplayError("timestamp_regression", stderr_tail)
 
                 try:
-                    produced = detector.process(record)
+                    produced: AlertV1 | tuple[AlertV1, ...] | None
+                    if isinstance(record, DnsEventV1):
+                        produced = (
+                            detector.process(record)
+                            if isinstance(detector, DetectionPipeline)
+                            else None
+                        )
+                    else:
+                        produced = detector.process(record)
                 except TimestampRegressionError:
                     raise ReplayError("timestamp_regression", stderr_tail) from None
                 except StateLimitExceeded:
@@ -361,7 +372,7 @@ def run_replay(
     if not resolved_pcap.is_file():
         raise ReplayError("pcap_not_regular_file")
 
-    policy_resource = resources.files("sih26145").joinpath("zeek/emit_syn_attempts.zeek")
+    policy_resource = resources.files("sih26145").joinpath("zeek/emit_events.zeek")
     with resources.as_file(policy_resource) as policy_path:
         command = (
             "zeek",

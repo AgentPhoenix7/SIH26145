@@ -31,6 +31,23 @@ def _syn(index: int, *, ts: float | None = None) -> dict[str, Any]:
     }
 
 
+def _dns(index: int, *, query_name: str, ts: float | None = None) -> dict[str, Any]:
+    return {
+        "schema_version": "dns_event_v1",
+        "event_type": "dns_query",
+        "ts": 100.0 + index * 0.1 if ts is None else ts,
+        "uid": f"fake-dns-{index}",
+        "src_ip": "192.0.2.10",
+        "src_port": 53_000 + index,
+        "dst_ip": "198.51.100.53",
+        "dst_port": 53,
+        "transport": "udp",
+        "query_name": query_name,
+        "query_type": 1,
+        "query_class": 1,
+    }
+
+
 def _eos(count: int, last_ts: float | None = None) -> dict[str, Any]:
     record: dict[str, Any] = {
         "schema_version": "control_v1",
@@ -63,6 +80,16 @@ def main() -> int:
     if mode == "one-event":
         _write_stdout(_syn(0))
         _write_stdout(_eos(1, 100.0))
+        return 0
+    if mode == "mixed-events":
+        _write_stdout(_syn(0))
+        _write_stdout(_dns(1, query_name="x9q7z8v6k5j4m3n2.example"))
+        _write_stdout(_eos(2, 100.1))
+        return 0
+    if mode == "cross-type-regression":
+        _write_stdout(_syn(0))
+        _write_stdout(_dns(1, query_name="example.com", ts=99.9))
+        _write_stdout(_eos(2, 99.9))
         return 0
     if mode == "blank":
         sys.stdout.buffer.write(b"\n")

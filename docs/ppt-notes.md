@@ -1,23 +1,24 @@
 # PPT Evidence Notes
 
-Last verified: **2026-08-28 (UTC)**
+Last verified: **2026-08-29 (UTC)**
 
-These are presentation-ready facts for verified Milestones 1 and 2. No screenshot, performance measurement, model metric, or dashboard is claimed here.
+These are presentation-ready facts for Milestones 1 through 3. No screenshot, end-to-end performance measurement, or dashboard is claimed here.
 
 ## Verified Demo Story
 
 ```text
 deterministic IPv4 PCAP replay
-  -> native Zeek 8.2.2 originator-SYN policy
-  -> flushed tcp_syn_attempt_v1 JSON Lines
+  -> native Zeek 8.2.2 SYN + DNS request policy
+  -> flushed versioned JSON Lines
   -> strict Python validation
   -> synchronous detector pipeline
      -> bounded source fan-out / port_scan_window 1.0.0
      -> bounded target SYN rate / syn_flood_window 1.0.0
+     -> local dns_features_v1 + dga_logreg_v1
   -> strict alert_v1 JSON Line
 ```
 
-The detectors are passive and local: they read validated metadata from a PCAP replay, do not contact observed endpoints, do not complete handshakes, and do not decrypt payloads. Both scan and SYN-flood alert callbacks were observed before the end-of-stream record, demonstrating incremental detection rather than a post-run `conn.log` report.
+The detectors are passive and local: they read validated metadata from a PCAP replay, do not contact observed endpoints or domains, do not complete handshakes, and do not decrypt payloads. Scan, SYN-flood, and DGA callbacks were observed before end-of-stream, demonstrating incremental detection rather than a post-run report. Runtime DGA inference opens no socket and requires no Internet access.
 
 ## Actual Threshold Alert
 
@@ -70,16 +71,48 @@ The committed `syn_flood_at_threshold.pcap` has SHA-256 `712bb6ea6da09fe4b7cb7af
 
 The 99-event below-threshold capture and the 100-event distributed-benign capture both produced exactly zero alert bytes. This is controlled scenario evidence, not a measured production false-positive rate. Source entropy describes distribution characteristics and does not prove spoofing.
 
+## Actual DNS/DGA ML Evidence
+
+The committed model is a 5,825-byte `StandardScaler` + balanced Logistic Regression artifact with SHA-256 `0627eea04dec557ccf4e6ab2382b6d1e432380bcfa140908dd0da68798e03f47`. It was trained on 27,723 selected domains with whole-family DGA holdout and zero train/test domain overlap.
+
+| Held-out metric | Actual value |
+| --- | ---: |
+| Precision | `0.7187797902764538` |
+| Recall | `0.25133333333333335` |
+| F1 | `0.37243763892319093` |
+| False-positive rate | `0.07223310479921645` |
+
+The weak recall and `7.22%` controlled-source FPR are stated openly. The model is a minimum genuine ML demonstration, not a production verdict.
+
+Native replay of the 124-byte synthetic fixture emitted one 987-byte strict alert before EOS:
+
+| Field | Actual value |
+| --- | --- |
+| Threat class | `DGA` |
+| Query | `x9q7z8v6k5j4m3n2.example` |
+| Flow ID | `CJKFoj4bpHEhTeaRoj` |
+| Source / protocol | `192.0.2.10` / `udp` |
+| Detector / model | `dga_logistic_regression` `1.0.0` / `dga_logreg_v1` |
+| Feature schema | `dns_features_v1` (140 values) |
+| Confidence / probability | `0.9999563398163442` |
+| Severity | `CRITICAL` |
+| Decision threshold | `0.5` |
+
+The controlled `example.com` fixture received probability `0.0018385042677530868` and emitted exactly zero bytes. These two fixtures are demonstration evidence, not a production error-rate estimate.
+
 ## Demo Commands
 
 ```bash
 uv sync --frozen --group dev
 uv run python tools/generate_milestone1_fixtures.py --output tests/fixtures/milestone1 --check
 uv run python tools/generate_milestone2_fixtures.py --output tests/fixtures/milestone2 --check
+uv run python tools/generate_milestone3_fixtures.py --output tests/fixtures/milestone3 --check
 uv run sih26145-replay tests/fixtures/milestone1/vertical_at_threshold.pcap
 uv run sih26145-replay tests/fixtures/milestone1/benign.pcap
 uv run sih26145-replay tests/fixtures/milestone2/syn_flood_at_threshold.pcap
 uv run sih26145-replay tests/fixtures/milestone2/benign_distributed.pcap
+uv run sih26145-replay tests/fixtures/milestone3/dga_dns.pcap
+uv run sih26145-replay tests/fixtures/milestone3/benign_dns.pcap
 ```
 
 Expected demo behavior: each threshold command prints one compact class-specific alert JSON line; each benign command prints nothing and exits successfully. Native `zeek` must resolve through `PATH`.
@@ -87,14 +120,15 @@ Expected demo behavior: each threshold command prints one compact class-specific
 ## Judge Talking Points
 
 - Why Zeek: packet parsing and immediate SYN event emission are mature, while Python retains auditable schema, state, heuristic, and evidence ownership.
-- Why hybrid detection: scan fan-out and SYN floods are clearer as bounded behavioral rules; the required genuine ML component is planned for passive DNS/DGA features and does not exist yet.
+- Why hybrid detection: scan fan-out and SYN floods are clearer as bounded behavioral rules; DGA uses the genuine supervised ML path because lexical patterns benefit from grouped training and probability inference.
+- Why Logistic Regression: it is CPU-friendly, explainable, only 5.8 KiB, and sufficient to prove real training/export/offline integration. Its weak recall/FPR are disclosed instead of hidden or used to justify deadline-risky model expansion.
+- How leakage is limited: DGA families, not rows, are held out; benign rows use stable hash buckets; domain overlap is zero. This does not guarantee unseen-family or production generalization.
 - Why evidence first: alerts carry actual triggering UIDs, capture-time windows, thresholds, rates, spans, deterministic samples, plus source fan-out or target/source-distribution evidence as appropriate.
 - How state is safe: hard bounds cover input lines, source/target event windows, UID/cooldown state, stderr retention, and process cleanup. State pressure fails with a named invariant instead of silently discarding evidence.
-- What remains: four untouched threat classes, UDP reflection/amplification within DDoS, genuine ML, offline model inference, API/dashboard, throughput and latency benchmarking, and screenshots.
+- What remains: three untouched classes, UDP reflection/amplification, DNS tunnelling, API/dashboard, end-to-end throughput and latency benchmarking, and screenshots.
 
 ## Evidence Still Needed Before Final PPT
 
 - Dashboard and terminal screenshots after those artifacts actually exist.
 - Measured detector/end-to-end P50/P95/P99 latency, sustained traffic rate, CPU, and memory with methodology.
-- Genuine model dataset provenance, grouped split, metrics, error analysis, artifact version, and offline inference proof.
-- Controlled evidence for DNS/DGA or tunnelling, exfiltration, and any later C2/TLS coverage; UDP reflection/amplification remains deferred within DDoS.
+- Controlled evidence for exfiltration and any later C2/TLS coverage; UDP reflection/amplification and DNS tunnelling remain deferred.

@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from sih26145.contracts.alerts import AlertV1
-from sih26145.contracts.events import TcpSynAttemptV1
+from sih26145.contracts.events import DnsEventV1, NetworkEvent
+from sih26145.detection.dga import DgaDetector
 from sih26145.detection.port_scan import PortScanDetector
 from sih26145.detection.syn_flood import SynFloodDetector
 
@@ -16,9 +17,14 @@ class DetectionPipeline:
 
     port_scan: PortScanDetector
     syn_flood: SynFloodDetector
+    dga: DgaDetector
 
-    def process(self, event: TcpSynAttemptV1) -> tuple[AlertV1, ...]:
+    def process(self, event: NetworkEvent) -> tuple[AlertV1, ...]:
         """Return every alert produced for one event before accepting the next."""
+
+        if isinstance(event, DnsEventV1):
+            dga_alert = self.dga.process(event)
+            return () if dga_alert is None else (dga_alert,)
 
         alerts: list[AlertV1] = []
         scan_alert = self.port_scan.process(event)

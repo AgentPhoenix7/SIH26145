@@ -10,10 +10,12 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from sih26145.contracts.alerts import AlertV1
+from sih26145.detection.dga import DgaDetector
 from sih26145.detection.pipeline import DetectionPipeline
 from sih26145.detection.port_scan import PortScanDetector, ScanConfig
 from sih26145.detection.scan_window import StateLimitExceeded
 from sih26145.detection.syn_flood import SynFloodConfig, SynFloodDetector
+from sih26145.ml.dga_model import DgaModel, DgaModelError
 from sih26145.replay import ReplayError, run_replay
 
 
@@ -23,9 +25,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="sih26145-replay",
         description=(
-            "Replay a PCAP passively through native Zeek and emit PORT_SCAN or "
-            "SYN_FLOOD alerts. "
-            "Thresholds and confidence scores are heuristic and unvalidated."
+            "Replay a PCAP passively through native Zeek and emit PORT_SCAN, "
+            "SYN_FLOOD, or local ML DGA alerts. Scan and flood thresholds and "
+            "confidence scores are heuristic and unvalidated."
         ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
@@ -143,9 +145,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 2
 
+    try:
+        dga_detector = DgaDetector(model=DgaModel.load_packaged())
+    except DgaModelError:
+        print(
+            "configuration_error: invalid_dga_model",
+            file=sys.stderr,
+            flush=True,
+        )
+        return 2
+
     detector_pipeline = DetectionPipeline(
         port_scan=detector,
         syn_flood=syn_flood_detector,
+        dga=dga_detector,
     )
 
     try:

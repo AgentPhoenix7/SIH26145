@@ -1,0 +1,46 @@
+{
+  "capture_sha256": "d33c5044bf410e55b733aa9bc82f9bf6fbf42436a0333114c3bb89a84cd1a274",
+  "endpoints": {
+    "destination_ips": [
+      "198.51.100.53"
+    ],
+    "destination_ports": [
+      53
+    ],
+    "source_ips": [
+      "192.0.2.10"
+    ]
+  },
+  "expected_alert_count": 0,
+  "expected_threat_class": "DGA",
+  "generator": "tools/generate_milestone3_fixtures.py",
+  "generator_version": "1.0.0",
+  "label": "BENIGN_DNS",
+  "model": {
+    "artifact_sha256": "0627eea04dec557ccf4e6ab2382b6d1e432380bcfa140908dd0da68798e03f47",
+    "decision_threshold": 0.5,
+    "probability": 0.0018385042677530868,
+    "version": "dga_logreg_v1"
+  },
+  "packet_count": 1,
+  "provenance": {
+    "address_standards": [
+      "RFC 5737"
+    ],
+    "domain_standards": [
+      "RFC 2606"
+    ],
+    "kind": "locally_generated_documentation_ranges",
+    "network_activity": "none"
+  },
+  "query_class": 1,
+  "query_name": "example.com",
+  "query_origin": "hand-authored RFC 2606 example domain",
+  "query_type": 1,
+  "scenario_id": "benign_dns",
+  "schema_version": "fixture_manifest_v1",
+  "timestamp_range": {
+    "end": "2023-11-14T22:13:20.250000Z",
+    "start": "2023-11-14T22:13:20.250000Z"
+  }
+}

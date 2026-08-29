@@ -15,10 +15,12 @@ import pytest
 import sih26145.replay as replay
 from sih26145.contracts.alerts import AlertV1
 from sih26145.contracts.events import EndOfStreamV1, parse_stream_line
+from sih26145.detection.dga import DgaDetector
 from sih26145.detection.pipeline import DetectionPipeline
 from sih26145.detection.port_scan import PortScanDetector, ScanConfig
 from sih26145.detection.scan_window import StateLimitExceeded, StateLimits
 from sih26145.detection.syn_flood import SynFloodConfig, SynFloodDetector
+from sih26145.ml.dga_model import DgaModel
 from sih26145.replay import ReplayError, ReplayResult, run_command, run_replay
 
 FAKE_ZEEK = Path("tests/helpers/fake_zeek.py").resolve()
@@ -110,6 +112,7 @@ def test_processes_every_pipeline_alert_before_accepting_eos(tmp_path: Path) -> 
         syn_flood=SynFloodDetector(
             config=SynFloodConfig(minimum_syn_events=1, minimum_unique_sources=1)
         ),
+        dga=DgaDetector(model=DgaModel.load_packaged()),
     )
 
     result = run_command(
@@ -124,6 +127,51 @@ def test_processes_every_pipeline_alert_before_accepting_eos(tmp_path: Path) -> 
         last_event_ts=100.0,
     )
     assert [alert.threat_class for alert in alerts] == ["PORT_SCAN", "SYN_FLOOD"]
+
+
+@pytest.mark.integration
+def test_mixed_syn_and_dns_events_share_accounting_and_alert_before_eos(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observations: list[str] = []
+    alerts: list[AlertV1] = []
+    real_parse = parse_stream_line
+
+    def observe_parse(raw: bytes) -> Any:
+        record = real_parse(raw)
+        if isinstance(record, EndOfStreamV1):
+            observations.append("eos")
+        return record
+
+    def emit_alert(alert: AlertV1) -> None:
+        observations.append(alert.threat_class)
+        alerts.append(alert)
+
+    monkeypatch.setattr(replay, "parse_stream_line", observe_parse)
+    detector_pipeline = DetectionPipeline(
+        port_scan=PortScanDetector(
+            config=ScanConfig(
+                minimum_attempts=1,
+                minimum_unique_destination_ports=1,
+                minimum_unique_destination_hosts=1,
+            )
+        ),
+        syn_flood=SynFloodDetector(
+            config=SynFloodConfig(minimum_syn_events=1, minimum_unique_sources=1)
+        ),
+        dga=DgaDetector(model=DgaModel.load_packaged()),
+    )
+
+    result = run_command(
+        _command("mixed-events", tmp_path / "pid"),
+        detector_pipeline,
+        emit_alert,
+    )
+
+    assert result == ReplayResult(events_processed=2, alerts_emitted=3, last_event_ts=100.1)
+    assert [alert.threat_class for alert in alerts] == ["PORT_SCAN", "SYN_FLOOD", "DGA"]
+    assert observations == ["PORT_SCAN", "SYN_FLOOD", "DGA", "eos"]
 
 
 @pytest.mark.integration
@@ -198,6 +246,7 @@ def test_uses_argument_sequence_no_shell_and_isolated_temporary_cwd(
         ("malformed-json", "invalid_stream_record"),
         ("unknown-record", "invalid_stream_record"),
         ("regression", "timestamp_regression"),
+        ("cross-type-regression", "timestamp_regression"),
         ("missing-eos", "missing_end_of_stream"),
         ("duplicate-eos", "duplicate_end_of_stream"),
         ("premature-eos", "end_of_stream_count_mismatch"),
@@ -451,7 +500,7 @@ def test_run_replay_resolves_exact_native_zeek_command(
     command = observed[0]
     assert command[:5] == ("zeek", "-D", "-b", "-r", str(pcap))
     assert len(command) == 6
-    assert command[5].endswith("/sih26145/zeek/emit_syn_attempts.zeek")
+    assert command[5].endswith("/sih26145/zeek/emit_events.zeek")
 
 
 def test_run_replay_canonicalizes_relative_pcap_before_isolated_cwd(

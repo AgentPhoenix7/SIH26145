@@ -1,0 +1,312 @@
+{
+  "artifact": {
+    "bytes": 5825,
+    "filename": "dga_logreg_v1.joblib",
+    "sha256": "0627eea04dec557ccf4e6ab2382b6d1e432380bcfa140908dd0da68798e03f47"
+  },
+  "artifact_schema_version": "dga_model_artifact_v1",
+  "classifier": {
+    "class_weight": "balanced",
+    "max_iter": 2000,
+    "random_state": 26145,
+    "type": "sklearn.linear_model.LogisticRegression"
+  },
+  "cpu_inference": {
+    "domains_per_second": 427184.36297686916,
+    "median_batch_seconds": 0.01658300400004009,
+    "microseconds_per_domain": 2.340909655567489,
+    "repetitions": 20,
+    "test_domains": 7084
+  },
+  "dataset": {
+    "dataset_sha256": "4001f5a52bc01fee60157d55531d6a1731d72804f103c00b17ead70efe64a582",
+    "discarded": {
+      "duplicates": 0,
+      "invalid": 0
+    },
+    "row_counts": {
+      "benign": 20000,
+      "dga": 7723,
+      "total": 27723
+    },
+    "schema_version": "dns_dataset_manifest_v1",
+    "selection_limits": {
+      "benign": 20000,
+      "per_dga_family": 2000
+    },
+    "sources": {
+      "dga": {
+        "families": [
+          "banjori",
+          "chinad",
+          "fobber",
+          "kraken_v1",
+          "simda",
+          "tempedreve",
+          "tinba",
+          "tufik"
+        ],
+        "files": [
+          {
+            "family": "banjori",
+            "path": "banjori/example_domains.txt",
+            "selected_rows": 1000,
+            "sha256": "62ee3c0eaf0f68a4a245083abde5463c2bf571e74bddf19c346b445f7252bcd1"
+          },
+          {
+            "family": "chinad",
+            "path": "chinad/example_domains.txt",
+            "selected_rows": 256,
+            "sha256": "4343ed9bacc168b9372d93f7eee78ab978d2f5a4b37fe22b9f7d3eaaee674384"
+          },
+          {
+            "family": "fobber",
+            "path": "fobber/domains_1.txt",
+            "selected_rows": 300,
+            "sha256": "79bca291cda8dd3dcb53fbd49f1121aabaf124ec073ebe16be18ba80bb1c6079"
+          },
+          {
+            "family": "kraken_v1",
+            "path": "kraken/v1/example_domains.txt",
+            "selected_rows": 2000,
+            "sha256": "7ac961d44480a73e922175fc77f1bb0d84b500e442291f6fe02726b13c270fc4"
+          },
+          {
+            "family": "simda",
+            "path": "simda/example_domains.txt",
+            "selected_rows": 1000,
+            "sha256": "a47f96abb26a9e0dd764fbd7d9724279ecd9c68d50a8c17aa22f7735786b4133"
+          },
+          {
+            "family": "tempedreve",
+            "path": "tempedreve/example_domains.txt",
+            "selected_rows": 1746,
+            "sha256": "b1592473385f4babe7114c40c3be8ace96be73c1a0c5ed73140784f6234dc7be"
+          },
+          {
+            "family": "tinba",
+            "path": "tinba/example_domains.txt",
+            "selected_rows": 401,
+            "sha256": "ed6357b765e725747d34c542e11859ea2ca35fb424e5677ff2e299002c2802b7"
+          },
+          {
+            "family": "tufik",
+            "path": "tufik/example_domains.txt",
+            "selected_rows": 1020,
+            "sha256": "fdc918e41fc2350cae522c18c04212fb357fa1e0de8908e558ffcd9ee43165d4"
+          }
+        ],
+        "licence": "GPL-2.0",
+        "repository": "https://github.com/baderj/domain_generation_algorithms",
+        "revision": "0faef452d267a62a94124ef2806bc4a72e0913bd",
+        "selected_rows": 7723
+      },
+      "majestic": {
+        "licence": "CC BY 3.0 Unported",
+        "selected_rows": 20000,
+        "sha256": "210cfa378d1c6b03338ff6950b3ab0fa20a6cd52c76b5a84f467207281822ba1",
+        "url": "https://downloads.majestic.com/majestic_million.csv"
+      }
+    }
+  },
+  "decision_threshold": 0.5,
+  "environment": {
+    "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+    "python": "3.13.15",
+    "scikit_learn": "1.9.0"
+  },
+  "evaluation": {
+    "confusion_matrix": {
+      "fn": 2246,
+      "fp": 295,
+      "tn": 3789,
+      "tp": 754
+    },
+    "f1": 0.37243763892319093,
+    "false_positive_rate": 0.07223310479921645,
+    "precision": 0.7187797902764538,
+    "recall": 0.25133333333333335
+  },
+  "feature_names": [
+    "domain_length",
+    "label_count",
+    "longest_label_length",
+    "mean_label_length",
+    "digit_ratio",
+    "hyphen_ratio",
+    "vowel_ratio",
+    "unique_character_ratio",
+    "character_entropy_bits",
+    "unique_bigram_ratio",
+    "longest_consonant_run",
+    "longest_digit_run",
+    "hashed_char_ngram_000",
+    "hashed_char_ngram_001",
+    "hashed_char_ngram_002",
+    "hashed_char_ngram_003",
+    "hashed_char_ngram_004",
+    "hashed_char_ngram_005",
+    "hashed_char_ngram_006",
+    "hashed_char_ngram_007",
+    "hashed_char_ngram_008",
+    "hashed_char_ngram_009",
+    "hashed_char_ngram_010",
+    "hashed_char_ngram_011",
+    "hashed_char_ngram_012",
+    "hashed_char_ngram_013",
+    "hashed_char_ngram_014",
+    "hashed_char_ngram_015",
+    "hashed_char_ngram_016",
+    "hashed_char_ngram_017",
+    "hashed_char_ngram_018",
+    "hashed_char_ngram_019",
+    "hashed_char_ngram_020",
+    "hashed_char_ngram_021",
+    "hashed_char_ngram_022",
+    "hashed_char_ngram_023",
+    "hashed_char_ngram_024",
+    "hashed_char_ngram_025",
+    "hashed_char_ngram_026",
+    "hashed_char_ngram_027",
+    "hashed_char_ngram_028",
+    "hashed_char_ngram_029",
+    "hashed_char_ngram_030",
+    "hashed_char_ngram_031",
+    "hashed_char_ngram_032",
+    "hashed_char_ngram_033",
+    "hashed_char_ngram_034",
+    "hashed_char_ngram_035",
+    "hashed_char_ngram_036",
+    "hashed_char_ngram_037",
+    "hashed_char_ngram_038",
+    "hashed_char_ngram_039",
+    "hashed_char_ngram_040",
+    "hashed_char_ngram_041",
+    "hashed_char_ngram_042",
+    "hashed_char_ngram_043",
+    "hashed_char_ngram_044",
+    "hashed_char_ngram_045",
+    "hashed_char_ngram_046",
+    "hashed_char_ngram_047",
+    "hashed_char_ngram_048",
+    "hashed_char_ngram_049",
+    "hashed_char_ngram_050",
+    "hashed_char_ngram_051",
+    "hashed_char_ngram_052",
+    "hashed_char_ngram_053",
+    "hashed_char_ngram_054",
+    "hashed_char_ngram_055",
+    "hashed_char_ngram_056",
+    "hashed_char_ngram_057",
+    "hashed_char_ngram_058",
+    "hashed_char_ngram_059",
+    "hashed_char_ngram_060",
+    "hashed_char_ngram_061",
+    "hashed_char_ngram_062",
+    "hashed_char_ngram_063",
+    "hashed_char_ngram_064",
+    "hashed_char_ngram_065",
+    "hashed_char_ngram_066",
+    "hashed_char_ngram_067",
+    "hashed_char_ngram_068",
+    "hashed_char_ngram_069",
+    "hashed_char_ngram_070",
+    "hashed_char_ngram_071",
+    "hashed_char_ngram_072",
+    "hashed_char_ngram_073",
+    "hashed_char_ngram_074",
+    "hashed_char_ngram_075",
+    "hashed_char_ngram_076",
+    "hashed_char_ngram_077",
+    "hashed_char_ngram_078",
+    "hashed_char_ngram_079",
+    "hashed_char_ngram_080",
+    "hashed_char_ngram_081",
+    "hashed_char_ngram_082",
+    "hashed_char_ngram_083",
+    "hashed_char_ngram_084",
+    "hashed_char_ngram_085",
+    "hashed_char_ngram_086",
+    "hashed_char_ngram_087",
+    "hashed_char_ngram_088",
+    "hashed_char_ngram_089",
+    "hashed_char_ngram_090",
+    "hashed_char_ngram_091",
+    "hashed_char_ngram_092",
+    "hashed_char_ngram_093",
+    "hashed_char_ngram_094",
+    "hashed_char_ngram_095",
+    "hashed_char_ngram_096",
+    "hashed_char_ngram_097",
+    "hashed_char_ngram_098",
+    "hashed_char_ngram_099",
+    "hashed_char_ngram_100",
+    "hashed_char_ngram_101",
+    "hashed_char_ngram_102",
+    "hashed_char_ngram_103",
+    "hashed_char_ngram_104",
+    "hashed_char_ngram_105",
+    "hashed_char_ngram_106",
+    "hashed_char_ngram_107",
+    "hashed_char_ngram_108",
+    "hashed_char_ngram_109",
+    "hashed_char_ngram_110",
+    "hashed_char_ngram_111",
+    "hashed_char_ngram_112",
+    "hashed_char_ngram_113",
+    "hashed_char_ngram_114",
+    "hashed_char_ngram_115",
+    "hashed_char_ngram_116",
+    "hashed_char_ngram_117",
+    "hashed_char_ngram_118",
+    "hashed_char_ngram_119",
+    "hashed_char_ngram_120",
+    "hashed_char_ngram_121",
+    "hashed_char_ngram_122",
+    "hashed_char_ngram_123",
+    "hashed_char_ngram_124",
+    "hashed_char_ngram_125",
+    "hashed_char_ngram_126",
+    "hashed_char_ngram_127"
+  ],
+  "feature_schema_version": "dns_features_v1",
+  "labels": {
+    "benign": 0,
+    "dga": 1
+  },
+  "model_version": "dga_logreg_v1",
+  "preprocessing": {
+    "type": "sklearn.preprocessing.StandardScaler"
+  },
+  "split": {
+    "dga_family_overlap": [],
+    "domain_overlap_count": 0,
+    "seed": 26145,
+    "strategy": "family-disjoint DGA plus SHA-256-bucketed unique benign domains",
+    "test_class_counts": {
+      "benign": 4084,
+      "dga": 3000
+    },
+    "test_dga_families": [
+      "kraken_v1",
+      "simda"
+    ],
+    "test_dga_family_count": 2,
+    "test_rows": 7084,
+    "train_class_counts": {
+      "benign": 15916,
+      "dga": 4723
+    },
+    "train_dga_families": [
+      "banjori",
+      "chinad",
+      "fobber",
+      "tempedreve",
+      "tinba",
+      "tufik"
+    ],
+    "train_dga_family_count": 6,
+    "train_rows": 20639
+  },
+  "trained_at_utc": "2026-08-29T06:48:28Z"
+}

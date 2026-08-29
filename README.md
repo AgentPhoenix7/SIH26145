@@ -1,6 +1,6 @@
 # SIH26145
 
-Small, passive, streaming MVP for **AI-Based Detection of Cyber Threats in Unidirectional IP Traffic**. The current verified path replays deterministic PCAPs through native Zeek and emits strict, evidence-bearing `PORT_SCAN` and `SYN_FLOOD` alerts. Demonstrated coverage spans two of six required classes, with DDoS limited to SYN floods; genuine ML, API/dashboard, and performance benchmarks are not implemented yet.
+Small, passive, streaming MVP for **AI-Based Detection of Cyber Threats in Unidirectional IP Traffic**. The current path replays deterministic PCAPs through native Zeek and emits strict, evidence-bearing `PORT_SCAN`, `SYN_FLOOD`, and locally inferred `DGA` alerts. Demonstrated coverage spans three of six named classes, with DDoS limited to SYN floods and DNS coverage limited to DGA lexical classification; API/dashboard and performance benchmarks are not implemented yet.
 
 ## Prerequisites
 
@@ -18,6 +18,7 @@ Run from the repository root:
 uv sync --frozen --group dev
 uv run python tools/generate_milestone1_fixtures.py --output tests/fixtures/milestone1 --check
 uv run python tools/generate_milestone2_fixtures.py --output tests/fixtures/milestone2 --check
+uv run python tools/generate_milestone3_fixtures.py --output tests/fixtures/milestone3 --check
 uv run pytest -m "not e2e" -v
 uv run pytest -m e2e -v
 uv run ruff check .
@@ -41,19 +42,26 @@ Emit one schema-valid SYN-flood threshold alert:
 uv run sih26145-replay tests/fixtures/milestone2/syn_flood_at_threshold.pcap
 ```
 
+Emit one schema-valid offline Logistic Regression DGA alert:
+
+```bash
+uv run sih26145-replay tests/fixtures/milestone3/dga_dns.pcap
+```
+
 Verify benign replay produces no alert output:
 
 ```bash
 uv run sih26145-replay tests/fixtures/milestone1/benign.pcap
 uv run sih26145-replay tests/fixtures/milestone2/benign_distributed.pcap
+uv run sih26145-replay tests/fixtures/milestone3/benign_dns.pcap
 ```
 
 Alert JSON Lines are written only to stdout and flushed immediately. Child stderr is concurrently drained but not echoed; the CLI writes only trusted safe diagnostics to stderr. Exit status is `0` for success, `2` for invalid CLI configuration or PCAP path, and `1` for runtime, process, contract, timestamp, callback, or state-limit failure.
 
-Default port-scan detection requires at least 20 deduplicated SYN attempts in a 10-second capture-time window plus fan-out to at least 15 destination ports or 15 destination hosts. Default SYN-flood detection requires at least 100 deduplicated SYN events from at least 20 unique sources to one destination endpoint in a 10-second capture-time window. Both confidence scores are explainable heuristics, not calibrated probabilities or ML output.
+Default port-scan detection requires at least 20 deduplicated SYN attempts in a 10-second capture-time window plus fan-out to at least 15 destination ports or 15 destination hosts. Default SYN-flood detection requires at least 100 deduplicated SYN events from at least 20 unique sources to one destination endpoint in a 10-second capture-time window. Those two confidence scores are explainable heuristics. DGA confidence is the persisted model's local class probability at a fixed `0.5` threshold; it is not proof that a domain is malicious and its measured evaluation does not establish production performance.
 
 Configuration is rejected before Zeek starts if a window is too small to keep its maximum derived rate finite, exceeds the 60-second UID deduplication TTL, or a threshold exceeds its detector's effective state capacity. Port-scan capacity is 4,096 events per source; SYN-flood capacity is 8,192 events per target under default limits.
 
-See [architecture](docs/architecture.md), [feature definitions](docs/features.md), [requirements traceability](docs/requirements-traceability.md), and [current progress](PROGRESS.md) for exact semantics and evidence.
+See [architecture](docs/architecture.md), [feature definitions](docs/features.md), [evaluation](docs/evaluation.md), [limitations](docs/limitations.md), [requirements traceability](docs/requirements-traceability.md), and [current progress](PROGRESS.md) for exact semantics and evidence.
 
 Frontend work has not started. **Bun** is reserved for later React/TypeScript frontend dependencies and scripts; npm, pnpm, and Yarn are not used.

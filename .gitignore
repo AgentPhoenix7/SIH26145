@@ -18,3 +18,4 @@ data/
 *.pcap
 *.pcapng
 !tests/fixtures/milestone1/*.pcap
+!tests/fixtures/milestone3/*.pcap

@@ -14,6 +14,7 @@ from pydantic import (
     StringConstraints,
     TypeAdapter,
     ValidationError,
+    field_validator,
     model_validator,
 )
 
@@ -37,6 +38,27 @@ CaptureTimestamp = Annotated[
 ]
 FlowUid = Annotated[str, StringConstraints(pattern=r"^[!-~]{1,128}$")]
 TransportPort = Annotated[StrictInt, Field(ge=0, le=65_535)]
+DnsCode = Annotated[StrictInt, Field(ge=1, le=65_535)]
+
+
+def normalize_dns_name(value: str) -> str:
+    """Return one strict lowercase LDH query name without a terminal dot."""
+
+    try:
+        value.encode("ascii", errors="strict")
+    except UnicodeEncodeError:
+        raise ValueError("DNS query name must be ASCII") from None
+    normalized = value.removesuffix(".").lower()
+    if not 1 <= len(normalized) <= 253:
+        raise ValueError("DNS query name length is outside 1..253")
+    for label in normalized.split("."):
+        if not 1 <= len(label) <= 63:
+            raise ValueError("DNS label length is outside 1..63")
+        if not label[0].isalnum() or not label[-1].isalnum():
+            raise ValueError("DNS label must begin and end with an alphanumeric character")
+        if any(not (character.isalnum() or character == "-") for character in label):
+            raise ValueError("DNS label contains a non-LDH character")
+    return normalized
 
 
 class TcpSynAttemptV1(StrictModel):
@@ -51,6 +73,33 @@ class TcpSynAttemptV1(StrictModel):
     dst_ip: IPvAnyAddress
     dst_port: TransportPort
     transport: Literal["tcp"]
+
+
+class DnsEventV1(StrictModel):
+    """One passive DNS request observed by Zeek."""
+
+    schema_version: Literal["dns_event_v1"]
+    event_type: Literal["dns_query"]
+    ts: CaptureTimestamp
+    uid: FlowUid
+    src_ip: IPvAnyAddress
+    src_port: TransportPort
+    dst_ip: IPvAnyAddress
+    dst_port: TransportPort
+    transport: Literal["udp", "tcp"]
+    query_name: Annotated[str, StringConstraints(min_length=1, max_length=254)]
+    query_type: DnsCode
+    query_class: DnsCode
+
+    @field_validator("query_name", mode="before")
+    @classmethod
+    def normalize_query_name(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        return normalize_dns_name(value)
+
+
+NetworkEvent = TcpSynAttemptV1 | DnsEventV1
 
 
 class EndOfStreamV1(StrictModel):
@@ -72,7 +121,7 @@ class EndOfStreamV1(StrictModel):
 
 
 StreamRecord = Annotated[
-    TcpSynAttemptV1 | EndOfStreamV1,
+    TcpSynAttemptV1 | DnsEventV1 | EndOfStreamV1,
     Field(discriminator="event_type"),
 ]
 _STREAM_RECORD_ADAPTER: TypeAdapter[StreamRecord] = TypeAdapter(StreamRecord)
