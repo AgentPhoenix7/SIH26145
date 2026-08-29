@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import math
 from collections import Counter
 from collections.abc import Callable
@@ -11,7 +12,7 @@ from typing import Literal
 from sih26145.contracts.events import normalize_dns_name
 
 FEATURE_SCHEMA_VERSION: Literal["dns_features_v1"] = "dns_features_v1"
-FEATURE_NAMES = (
+SUMMARY_FEATURE_NAMES = (
     "domain_length",
     "label_count",
     "longest_label_length",
@@ -24,6 +25,10 @@ FEATURE_NAMES = (
     "unique_bigram_ratio",
     "longest_consonant_run",
     "longest_digit_run",
+)
+HASHED_NGRAM_BUCKETS = 128
+FEATURE_NAMES = SUMMARY_FEATURE_NAMES + tuple(
+    f"hashed_char_ngram_{index:03d}" for index in range(HASHED_NGRAM_BUCKETS)
 )
 
 
@@ -58,9 +63,10 @@ class DnsLexicalFeatures:
     unique_bigram_ratio: float
     longest_consonant_run: int
     longest_digit_run: int
+    hashed_ngram_frequencies: tuple[float, ...]
 
-    def as_vector(self) -> tuple[float, ...]:
-        """Return values in the immutable `FEATURE_NAMES` order."""
+    def summary_vector(self) -> tuple[float, ...]:
+        """Return the human-readable evidence values in their fixed order."""
 
         return (
             float(self.domain_length),
@@ -76,6 +82,27 @@ class DnsLexicalFeatures:
             float(self.longest_consonant_run),
             float(self.longest_digit_run),
         )
+
+    def as_vector(self) -> tuple[float, ...]:
+        """Return summary and hashed n-gram values in `FEATURE_NAMES` order."""
+
+        return self.summary_vector() + self.hashed_ngram_frequencies
+
+
+def _hashed_ngram_frequencies(labels: list[str]) -> tuple[float, ...]:
+    buckets = [0] * HASHED_NGRAM_BUCKETS
+    total = 0
+    for label in labels:
+        for width in (2, 3):
+            for index in range(len(label) - width + 1):
+                ngram = label[index : index + width].encode("ascii")
+                digest = hashlib.blake2b(ngram, digest_size=8, person=b"SIH26145").digest()
+                bucket = int.from_bytes(digest, "big") % HASHED_NGRAM_BUCKETS
+                buckets[bucket] += 1
+                total += 1
+    if total == 0:
+        return (0.0,) * HASHED_NGRAM_BUCKETS
+    return tuple(count / total for count in buckets)
 
 
 def extract_dns_features(domain: str) -> DnsLexicalFeatures:
@@ -109,4 +136,5 @@ def extract_dns_features(domain: str) -> DnsLexicalFeatures:
             lambda character: character.isalpha() and character not in vowels,
         ),
         longest_digit_run=_longest_run(labels, str.isdigit),
+        hashed_ngram_frequencies=_hashed_ngram_frequencies(labels),
     )

@@ -258,7 +258,7 @@ class DgaEvidence(StrictModel):
         expected = extract_dns_features(self.query_name)
         observed = self.lexical_features
         pairs = zip(
-            expected.as_vector(),
+            expected.summary_vector(),
             (
                 float(observed.domain_length),
                 float(observed.label_count),

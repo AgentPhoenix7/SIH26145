@@ -64,10 +64,10 @@
 - Create: `tests/unit/test_dga_alert_contracts.py`
 
 **Interfaces:**
-- Produces: `FEATURE_SCHEMA_VERSION`, `FEATURE_NAMES`, `DnsLexicalFeatures`, `extract_dns_features(domain)`, `DgaEvidence`, and `DgaAlertV1`.
+- Produces: `FEATURE_SCHEMA_VERSION`, 12 summary features plus 128 deterministic hashed character n-gram buckets, `FEATURE_NAMES`, `DnsLexicalFeatures`, `extract_dns_features(domain)`, `DgaEvidence`, and `DgaAlertV1`.
 
 - [ ] Add failing feature tests with hand-derived vectors for `example.com`, digit/hyphen domains, entropy, bigram ratio, and consonant/digit runs.
-- [ ] Implement the 12 ordered finite `dns_features_v1` values and run focused tests green.
+- [ ] Implement the 12 ordered finite summary values and 128 normalized hashed 2-gram/3-gram buckets in `dns_features_v1`, then run focused tests green.
 - [ ] Add failing alert tests for one literal DGA alert and every mismatch: class/detector/evidence, probability/threshold, model/feature version, query name, transport, and zero-span window.
 - [ ] Extend `alert_v1` with typed DGA evidence while preserving scan/flood serialization; run all alert tests green.
 - [ ] Commit with `feat: define shared DGA lexical evidence`.
@@ -146,4 +146,3 @@
 - [ ] Update only affected docs with actual sources, features, split, precision, recall, F1, FPR, artifact bytes, CPU inference measurements, limitations, exact commands, and honest 3/6 demonstrated class status.
 - [ ] Run `uv sync --frozen --group dev`, full pytest, Ruff lint/format, strict mypy, all three fixture checks, actual benign/DGA CLI replay, strict alert validation, artifact integrity validation, `git diff --check`, and status inspection.
 - [ ] Commit with `docs: verify milestone three DNS DGA path` and stop without push or merge.
-

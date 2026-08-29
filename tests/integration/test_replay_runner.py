@@ -451,7 +451,7 @@ def test_run_replay_resolves_exact_native_zeek_command(
     command = observed[0]
     assert command[:5] == ("zeek", "-D", "-b", "-r", str(pcap))
     assert len(command) == 6
-    assert command[5].endswith("/sih26145/zeek/emit_syn_attempts.zeek")
+    assert command[5].endswith("/sih26145/zeek/emit_events.zeek")
 
 
 def test_run_replay_canonicalizes_relative_pcap_before_isolated_cwd(

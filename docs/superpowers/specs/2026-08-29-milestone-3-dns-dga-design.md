@@ -33,7 +33,7 @@ A new combined Zeek policy emits existing `tcp_syn_attempt_v1` records and reque
 
 ## Shared Lexical Features
 
-One `dns_features_v1` implementation is imported by both training and runtime. It accepts the same normalized query name and returns an ordered finite vector with exact names:
+One `dns_features_v1` implementation is imported by both training and runtime. It accepts the same normalized query name and returns 12 ordered finite summary values with exact names:
 
 1. domain length excluding dots;
 2. label count;
@@ -47,6 +47,8 @@ One `dns_features_v1` implementation is imported by both training and runtime. I
 10. unique adjacent-bigram ratio;
 11. longest consonant run;
 12. longest digit run.
+
+The model vector appends 128 deterministic BLAKE2b-hashed character 2-gram and 3-gram frequency buckets. N-grams never cross DNS label boundaries, bucket values are normalized by the query's n-gram count, and the complete vector therefore has 140 finite values. Typed alerts retain the 12 human-readable values rather than emitting all 128 sparse buckets; runtime validation still recomputes the summary from the recorded query.
 
 Every value is derived only from the passively observed DNS query. There is no WHOIS, resolver lookup, allowlist call, response-dependent feature, wall-clock feature, or Internet inference.
 
@@ -91,4 +93,3 @@ Acceptance requires all of the following current evidence:
 - existing Milestone 1 and 2 tests and fixture checks remain green;
 - full pytest, Ruff lint/format, strict mypy, locked sync, artifact verification, real replay, and `git diff --check` pass;
 - affected architecture, features, evaluation, limitations, traceability, README, PPT notes, dataset research, and `PROGRESS.md` contain measured facts only.
-
