@@ -1,6 +1,6 @@
 # SIH26145 Dataset and External-Resource Research
 
-Research date: 2026-08-26
+Research date: 2026-08-26; DNS/DGA source decision verified 2026-08-29
 
 ## Conclusion
 
@@ -122,10 +122,19 @@ Use a hybrid dataset strategy:
 6. Review and record the licence and provenance of each supplemental domain or
    fingerprint source before incorporating it.
 
+## Milestone 3 DNS/DGA Source Decision
+
+The following sources were verified before any corpus was imported:
+
+| Role | Exact source | Provenance and licence | Format and use | Redistribution / limitations |
+|---|---|---|---|---|
+| Benign-domain proxy | Majestic Million, `https://downloads.majestic.com/majestic_million.csv` | The live Majestic page stated **Creative Commons Attribution 3.0 Unported** and identified a list generated on 2026-08-29. | Approximately 80 MB CSV. The preparation tool selects at most 20,000 unique normalized domains and records the downloaded file's SHA-256 and retrieval time. | Attribute Majestic. Keep the full snapshot out of Git. Popularity is not proof of benignness; rankings are time-varying and can include compromised or abused domains. |
+| DGA-family examples | `https://github.com/baderj/domain_generation_algorithms`, pinned commit `0faef452d267a62a94124ef2806bc4a72e0913bd` | Repository `LICENSE` is **GNU GPL version 2**. The pinned tree exposes family-specific Python implementations and generated example-domain text files. | A local detached checkout supplies only explicitly selected family-labelled example lists; the preparation tool caps each family at 2,000 valid unique domains and records file hashes/counts. | Keep the checkout and full lists out of Git. Preserve attribution and revision. Do not copy upstream code into this project. Generated examples are synthetic algorithm outputs, not observed infections; no claim is made that trained weights remove source-licence obligations. |
+
+The Majestic page's licence statement was observed at lines surrounding its CSV download link, and the DGA revision was resolved with `git ls-remote` before download. The model will use only normalized query-name features that the passive `dns_event_v1` runtime can reproduce. Family-disjoint DGA evaluation and stable hash-split unique benign domains prevent direct row leakage; they do not prove generalization to every unseen DGA or production DNS population.
+
 ## Remaining Research
 
-- Identify a licensable benign-domain source and one or more DGA-family sources
-  suitable for family-grouped evaluation.
 - Check the licences and safe local execution requirements of the exact traffic
   generators selected for each scenario.
 - Decide whether encrypted-session coverage can be demonstrated honestly with
