@@ -246,6 +246,7 @@ def test_uses_argument_sequence_no_shell_and_isolated_temporary_cwd(
         ("malformed-json", "invalid_stream_record"),
         ("unknown-record", "invalid_stream_record"),
         ("regression", "timestamp_regression"),
+        ("cross-type-regression", "timestamp_regression"),
         ("missing-eos", "missing_end_of_stream"),
         ("duplicate-eos", "duplicate_end_of_stream"),
         ("premature-eos", "end_of_stream_count_mismatch"),

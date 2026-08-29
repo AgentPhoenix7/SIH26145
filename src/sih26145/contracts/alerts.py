@@ -67,7 +67,7 @@ class AlertWindow(StrictModel):
 
     start: datetime
     end: datetime
-    configured_seconds: PositiveFloat
+    configured_seconds: NonNegativeFloat
 
     @field_validator("start", "end")
     @classmethod
@@ -350,7 +350,11 @@ class AlertV1(StrictModel):
             raise ValueError("observed span is inconsistent with alert window")
 
         if isinstance(self.evidence, DgaEvidence):
+            if self.window.configured_seconds != 0.0:
+                raise ValueError("DGA alert must not claim a configured time window")
             return self
+        if self.window.configured_seconds <= 0.0:
+            raise ValueError("stateful alert window duration must be positive")
         if isinstance(self.evidence, PortScanEvidence):
             measured_events = self.evidence.deduplicated_attempts
             measured_rate = self.evidence.attempt_rate_per_second

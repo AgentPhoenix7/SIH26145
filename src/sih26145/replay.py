@@ -275,6 +275,8 @@ def run_command(
                     eos = record
                     post_eos_deadline = time.monotonic() + PROCESS_WAIT_SECONDS
                     break
+                if last_event_ts is not None and record.ts < last_event_ts:
+                    raise ReplayError("timestamp_regression", stderr_tail)
 
                 try:
                     produced: AlertV1 | tuple[AlertV1, ...] | None

@@ -283,11 +283,20 @@
     "domain_overlap_count": 0,
     "seed": 26145,
     "strategy": "family-disjoint DGA plus SHA-256-bucketed unique benign domains",
+    "test_class_counts": {
+      "benign": 4084,
+      "dga": 3000
+    },
     "test_dga_families": [
       "kraken_v1",
       "simda"
     ],
+    "test_dga_family_count": 2,
     "test_rows": 7084,
+    "train_class_counts": {
+      "benign": 15916,
+      "dga": 4723
+    },
     "train_dga_families": [
       "banjori",
       "chinad",
@@ -296,6 +305,7 @@
       "tinba",
       "tufik"
     ],
+    "train_dga_family_count": 6,
     "train_rows": 20639
   },
   "trained_at_utc": "2026-08-29T06:48:28Z"

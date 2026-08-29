@@ -7,7 +7,7 @@ import csv
 import hashlib
 import json
 import subprocess
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +16,7 @@ from sih26145.contracts.events import normalize_dns_name
 MAJESTIC_URL = "https://downloads.majestic.com/majestic_million.csv"
 DGA_REPOSITORY_URL = "https://github.com/baderj/domain_generation_algorithms"
 PINNED_DGA_REVISION = "0faef452d267a62a94124ef2806bc4a72e0913bd"
+MAX_DATASET_LINE_BYTES = 4_096
 DEFAULT_DGA_FILES = (
     ("banjori", "banjori/example_domains.txt"),
     ("chinad", "chinad/example_domains.txt"),
@@ -41,6 +42,17 @@ def _valid_domain(value: str) -> str | None:
         return normalize_dns_name(value.strip())
     except ValueError:
         return None
+
+
+def _bounded_utf8_lines(path: Path) -> Iterator[str]:
+    with path.open("rb") as handle:
+        while raw := handle.readline(MAX_DATASET_LINE_BYTES + 1):
+            if len(raw) > MAX_DATASET_LINE_BYTES:
+                raise ValueError("dataset_line_too_long")
+            try:
+                yield raw.decode("utf-8", errors="strict")
+            except UnicodeDecodeError:
+                raise ValueError("invalid_dataset_encoding") from None
 
 
 def prepare_dataset(
@@ -102,7 +114,7 @@ def prepare_dataset(
             raise ValueError("dga_family_file_missing")
         families.append(family)
         family_count = 0
-        for line in source_path.read_text(encoding="utf-8", errors="strict").splitlines():
+        for line in _bounded_utf8_lines(source_path):
             domain = _valid_domain(line)
             if domain is None:
                 invalid_count += 1

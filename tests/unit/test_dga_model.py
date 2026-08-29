@@ -9,6 +9,7 @@ from typing import Any
 
 import joblib  # type: ignore[import-untyped]
 import pytest
+import sklearn  # type: ignore[import-untyped]
 
 ARTIFACT = Path("src/sih26145/artifacts/dga_logreg_v1.joblib")
 METADATA = Path("src/sih26145/artifacts/dga_logreg_v1.metadata.json")
@@ -76,4 +77,19 @@ def test_loader_rejects_artifact_with_wrong_pipeline_shape(tmp_path: Path) -> No
     metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
 
     with pytest.raises(module.DgaModelError):
+        module.DgaModel.load(artifact, metadata_path)
+
+
+def test_loader_rejects_runtime_sklearn_version_mismatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _module()
+    artifact = tmp_path / ARTIFACT.name
+    artifact.write_bytes(ARTIFACT.read_bytes())
+    metadata_path = tmp_path / METADATA.name
+    metadata_path.write_bytes(METADATA.read_bytes())
+    monkeypatch.setattr(sklearn, "__version__", "1.8.0")
+
+    with pytest.raises(module.DgaModelError, match="incompatible_model_metadata"):
         module.DgaModel.load(artifact, metadata_path)

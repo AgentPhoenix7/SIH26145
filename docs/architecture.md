@@ -162,7 +162,7 @@ CLI process status is stable: invalid configuration or an invalid PCAP path exit
 
 ## Event Time and Ordering
 
-All windows use capture time, never wall-clock processing time. Each detector owns a watermark equal to its greatest accepted `ts`; allowed lateness is zero. Equal timestamps preserve input order. Any record below either watermark fails before that detector mutates state. The runner propagates the failure and owns only subprocess stream order, alert batching, and EOS consistency.
+All windows use capture time, never wall-clock processing time. The runner rejects any event timestamp below the preceding stream event, including across SYN and DNS record types. Each stateful SYN detector also owns a watermark equal to its greatest accepted `ts`; allowed lateness is zero. Equal timestamps preserve input order. Regression fails before detector mutation, while the runner continues to own subprocess stream order, alert batching, and EOS consistency.
 
 Strict monotonic input is appropriate for deterministic PCAP fixtures, avoids silently distorting rate calculations, and allows immediate alerting without a reorder buffer. A future live or merged-capture ingest may add a bounded lateness heap in the runner while leaving the schema and detector unchanged. That extension is not part of Milestone 1.
 

@@ -24,7 +24,7 @@ def dga_alert_payload(**overrides: Any) -> dict[str, Any]:
         "window": {
             "start": "2026-08-29T06:00:00.000000Z",
             "end": "2026-08-29T06:00:00.000000Z",
-            "configured_seconds": 1.0,
+            "configured_seconds": 0.0,
         },
         "evidence": {
             "query_name": "example.com",
@@ -119,5 +119,12 @@ def test_dga_alert_is_exactly_one_event_window() -> None:
     payload = deepcopy(dga_alert_payload())
     payload["window"]["start"] = "2026-08-29T05:59:59.000000Z"
     payload["evidence"]["observed_span_seconds"] = 1.0
+
+    _reject(payload)
+
+
+def test_dga_alert_rejects_invented_configured_time_window() -> None:
+    payload = dga_alert_payload()
+    payload["window"]["configured_seconds"] = 1.0
 
     _reject(payload)

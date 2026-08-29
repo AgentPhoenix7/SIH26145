@@ -8,7 +8,7 @@ Last updated: **2026-08-29 (UTC)**
 - **Current branch:** `feature/milestone-3-dns-dga`
 - **Milestone 2 merge commit:** `2e8706c404c088ee6e2312a740ff4df38dc63cbe`
 - **Milestone 2 final feature commit:** `7cb1eb513295a844ef8959616631f9f1e8fed531`
-- **Current milestone:** Milestone 3 — DNS/DGA ML (**VERIFIED on the feature branch; final verification commit not pushed or merged**).
+- **Current milestone:** Milestone 3 — DNS/DGA ML (**VERIFIED after complete code review on the feature branch; review commit and PR pending**).
 - **Active milestone branch:** `feature/milestone-3-dns-dga`
 - **Active milestone worktree:** `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-3-dns-dga`
 - **Milestone 3 base commit:** `95159b6da04f0ee7ae6b61b3befd941842aac9bc`
@@ -25,7 +25,7 @@ Last updated: **2026-08-29 (UTC)**
 - Fresh Milestone 3 worktree baseline at `95159b6` passed on 2026-08-29: frozen `uv sync` succeeded; `240 passed in 16.24s`; Ruff lint passed; Ruff confirmed 41 files formatted; strict mypy found no issues in 30 source files; both deterministic fixture checks passed.
 - Milestone 3 now has a strict passive `dns_event_v1`, combined SYN/DNS Zeek stream, shared 140-value `dns_features_v1`, provenance-backed grouped training, a packaged 5,825-byte Logistic Regression artifact, local offline inference, typed `DGA` alerts, and deterministic native benign/DGA replay.
 - Native synthetic replay processed one DNS event and emitted one 987-byte schema-valid `DGA` alert with probability `0.9999563398163442` before EOS. Native `example.com` replay processed one event and emitted exactly zero output bytes.
-- Final Milestone 3 gate passed on 2026-08-29: frozen sync succeeded; `313 passed in 17.41s`; Ruff lint passed; Ruff confirmed 62 files formatted; strict mypy found no issues in 47 source files; all three fixture checks, actual benign/DGA replay, strict alert and artifact validation, wheel-resource inspection, and `git diff --check` passed.
+- Post-review Milestone 3 gate passed on 2026-08-29: frozen sync succeeded; `320 passed in 18.13s`; Ruff lint passed; Ruff confirmed 62 files formatted; strict mypy found no issues in 47 source files; all three fixture checks, actual benign/DGA replay, strict alert and artifact validation, exact scikit-learn wheel dependency inspection, wheel-resource inspection, and `git diff --check` passed.
 
 ### Implemented but Not Verified
 
@@ -33,7 +33,7 @@ Last updated: **2026-08-29 (UTC)**
 
 ### In Progress
 
-- Awaiting user review and explicit instructions for push/merge. No further Milestone 3 feature work is planned.
+- Complete code review and required fixes are finished. The branch is ready for its review commit, push, and pull request; merge remains unauthorized.
 
 ### Known Problems
 
@@ -76,9 +76,9 @@ Last updated: **2026-08-29 (UTC)**
 
 ### Immediate Next Actions
 
-1. Commit the verified Milestone 3 fixture/documentation slice without pushing or merging.
-2. Await explicit user direction for review, push, and merge.
-3. After merge, create a fresh isolated milestone for the minimal local API, bounded alert storage, and dashboard; then finish the demo, benchmark, screenshots, and PPT evidence.
+1. Commit and push the verified Milestone 3 review corrections.
+2. Open a pull request against `main` with honest 3/6 coverage and model limitations; do not merge it.
+3. After an explicitly authorized merge, create a fresh isolated milestone for the minimal local API, bounded alert storage, and dashboard; then finish the demo, benchmark, screenshots, and PPT evidence.
 
 ### Commands to Resume
 
@@ -214,6 +214,10 @@ Milestone 3 adds:
 - [x] Native DGA replay emits one strict alert before EOS and native benign DNS replay emits zero bytes.
 - [x] Final full locked test/lint/type/fixture/replay/documentation and wheel-resource gate passed.
 
+## Milestone 3 Code Review
+
+Complete local review, supplemented by independent read-only reviewer findings, found and corrected seven material issues before PR: training now binds the prepared CSV to its provenance manifest and records train/test class and family counts; DGA source files stream through a 4,096-byte record bound instead of whole-file loading; training rejects noncanonical domain identities before splitting; the packaged joblib requires and validates its exact scikit-learn `1.9.0` runtime; stateless DGA alerts use a truthful zero-duration window; mixed SYN/DNS timestamp regression is rejected at the stream boundary; and dataset documentation no longer claims an unrecorded retrieval timestamp. Each production correction has a focused regression.
+
 ## Milestone 2 Acceptance
 
 - [x] Reuses the frozen `tcp_syn_attempt_v1` and Zeek policy unchanged.
@@ -244,7 +248,7 @@ Milestone 3 adds:
 
 ## Exact Evidence Commands
 
-Fresh final Milestone 3 verification was run from the dedicated worktree on 2026-08-29:
+Fresh post-review Milestone 3 verification was run from the dedicated worktree on 2026-08-29:
 
 ```bash
 UV_CACHE_DIR=/tmp/sih26145-m3-uv-cache uv sync --frozen --group dev
@@ -261,7 +265,7 @@ UV_CACHE_DIR=/tmp/sih26145-m3-uv-cache uv build
 git diff --check
 ```
 
-Observed results: `313 passed in 17.41s`; Ruff lint passed; Ruff confirmed 62 files formatted; strict mypy found no issues in 47 source files; all three fixture checks exited `0`. The actual DGA output was one line and 987 bytes, validated as strict `alert_v1` with probability `0.9999563398163442`; benign output was zero bytes. Artifact size/hash validation passed at 5,825 bytes and SHA-256 `0627eea04dec557ccf4e6ab2382b6d1e432380bcfa140908dd0da68798e03f47`. The built wheel contains the joblib artifact, metadata sidecar, combined Zeek policy, and `py.typed`. `git diff --check` passed.
+Observed results: `320 passed in 18.13s`; Ruff lint passed; Ruff confirmed 62 files formatted; strict mypy found no issues in 47 source files; all three fixture checks exited `0`. The actual DGA output was one line and 987 bytes, validated as strict `alert_v1` with probability `0.9999563398163442` and zero configured window seconds; benign output was zero bytes. Artifact size/hash validation passed at 5,825 bytes and SHA-256 `0627eea04dec557ccf4e6ab2382b6d1e432380bcfa140908dd0da68798e03f47`; metadata records 15,916 benign plus 4,723 DGA training rows and 4,084 benign plus 3,000 DGA test rows. The built wheel contains the joblib artifact, metadata sidecar, combined Zeek policy, and `py.typed`, and declares exact `scikit-learn==1.9.0`. `git diff --check` passed.
 
 Fresh Milestone 3 isolation and baseline verification was run from the dedicated worktree on 2026-08-29:
 

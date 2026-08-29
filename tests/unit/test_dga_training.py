@@ -7,6 +7,7 @@ from pathlib import Path
 
 import joblib  # type: ignore[import-untyped]
 import numpy as np
+import pytest
 
 from sih26145.ml.dns_features import extract_dns_features
 from tools.train_dga_model import load_rows, split_rows, train_and_export
@@ -67,6 +68,18 @@ def test_split_is_family_disjoint_and_has_no_domain_overlap(tmp_path: Path) -> N
     assert {row.label for row in split.test} == {0, 1}
 
 
+def test_load_rows_rejects_noncanonical_domain_identity(tmp_path: Path) -> None:
+    dataset = tmp_path / "dataset.csv"
+    with dataset.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle, lineterminator="\n")
+        writer.writerow(("domain", "label", "family", "source"))
+        writer.writerow(("Example.com", 0, "benign", "majestic"))
+        writer.writerow(("example.com", 0, "benign", "majestic"))
+
+    with pytest.raises(ValueError, match="invalid_dataset_domain"):
+        load_rows(dataset)
+
+
 def test_training_exports_reloadable_model_and_required_honest_metadata(tmp_path: Path) -> None:
     dataset = tmp_path / "dataset.csv"
     _dataset(dataset)
@@ -99,6 +112,10 @@ def test_training_exports_reloadable_model_and_required_honest_metadata(tmp_path
     assert metadata["decision_threshold"] == 0.5
     assert metadata["split"]["dga_family_overlap"] == []
     assert metadata["split"]["domain_overlap_count"] == 0
+    assert metadata["split"]["train_class_counts"] == {"benign": 17, "dga": 24}
+    assert metadata["split"]["test_class_counts"] == {"benign": 3, "dga": 8}
+    assert metadata["split"]["train_dga_family_count"] == 3
+    assert metadata["split"]["test_dga_family_count"] == 1
     assert set(metadata["evaluation"]) >= {
         "precision",
         "recall",
@@ -115,3 +132,28 @@ def test_training_exports_reloadable_model_and_required_honest_metadata(tmp_path
     vector = np.asarray([extract_dns_features("x9q70m2n8.example").as_vector()])
     probability = float(model.predict_proba(vector)[0, 1])
     assert 0.0 <= probability <= 1.0
+
+
+def test_training_rejects_dataset_that_does_not_match_its_manifest(tmp_path: Path) -> None:
+    dataset = tmp_path / "dataset.csv"
+    _dataset(dataset)
+    dataset_manifest = tmp_path / "dataset.manifest.json"
+    dataset_manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": "dns_dataset_manifest_v1",
+                "dataset_sha256": "0" * 64,
+                "sources": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="dataset_manifest_mismatch"):
+        train_and_export(
+            dataset_csv=dataset,
+            dataset_manifest_path=dataset_manifest,
+            artifact_path=tmp_path / "model.joblib",
+            metadata_path=tmp_path / "model.metadata.json",
+            inference_repetitions=1,
+        )

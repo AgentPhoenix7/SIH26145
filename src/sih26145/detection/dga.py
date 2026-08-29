@@ -68,7 +68,7 @@ class DgaDetector:
             window=AlertWindow(
                 start=observed_at,
                 end=observed_at,
-                configured_seconds=1.0,
+                configured_seconds=0.0,
             ),
             evidence=evidence,
         )

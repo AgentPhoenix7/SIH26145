@@ -29,6 +29,7 @@ from sklearn.metrics import (  # type: ignore[import-untyped]
 from sklearn.pipeline import Pipeline  # type: ignore[import-untyped]
 from sklearn.preprocessing import StandardScaler  # type: ignore[import-untyped]
 
+from sih26145.contracts.events import normalize_dns_name
 from sih26145.ml.dns_features import FEATURE_NAMES, FEATURE_SCHEMA_VERSION, extract_dns_features
 
 MODEL_VERSION = "dga_logreg_v1"
@@ -70,6 +71,12 @@ def load_rows(path: Path) -> tuple[DatasetRow, ...]:
             raise ValueError("invalid_dataset_columns")
         for source_row in reader:
             domain = source_row["domain"]
+            try:
+                normalized_domain = normalize_dns_name(domain)
+            except ValueError:
+                raise ValueError("invalid_dataset_domain") from None
+            if domain != normalized_domain:
+                raise ValueError("invalid_dataset_domain")
             if domain in seen:
                 raise ValueError("duplicate_dataset_domain")
             seen.add(domain)
@@ -140,6 +147,13 @@ def train_and_export(
 
     if inference_repetitions <= 0:
         raise ValueError("inference_repetitions_must_be_positive")
+    manifest = json.loads(dataset_manifest_path.read_text(encoding="utf-8"))
+    if (
+        not isinstance(manifest, dict)
+        or manifest.get("schema_version") != "dns_dataset_manifest_v1"
+        or manifest.get("dataset_sha256") != _sha256(dataset_csv)
+    ):
+        raise ValueError("dataset_manifest_mismatch")
     rows = load_rows(dataset_csv)
     split = split_rows(rows)
     train_x = _matrix(split.train)
@@ -177,7 +191,6 @@ def train_and_export(
 
     artifact_path.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(model, artifact_path)
-    manifest = json.loads(dataset_manifest_path.read_text(encoding="utf-8"))
     train_families = sorted({row.family for row in split.train if row.label == 1})
     test_families = sorted({row.family for row in split.test if row.label == 1})
     train_domains = {row.domain for row in split.train}
@@ -202,8 +215,18 @@ def train_and_export(
             "seed": SPLIT_SEED,
             "train_rows": len(split.train),
             "test_rows": len(split.test),
+            "train_class_counts": {
+                "benign": sum(row.label == 0 for row in split.train),
+                "dga": sum(row.label == 1 for row in split.train),
+            },
+            "test_class_counts": {
+                "benign": sum(row.label == 0 for row in split.test),
+                "dga": sum(row.label == 1 for row in split.test),
+            },
             "train_dga_families": train_families,
             "test_dga_families": test_families,
+            "train_dga_family_count": len(train_families),
+            "test_dga_family_count": len(test_families),
             "dga_family_overlap": sorted(set(train_families) & set(test_families)),
             "domain_overlap_count": len(train_domains & test_domains),
         },

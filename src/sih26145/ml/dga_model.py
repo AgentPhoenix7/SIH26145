@@ -12,6 +12,7 @@ from typing import Any, Final, Literal
 
 import joblib  # type: ignore[import-untyped]
 import numpy as np
+import sklearn  # type: ignore[import-untyped]
 from sklearn.linear_model import LogisticRegression  # type: ignore[import-untyped]
 from sklearn.pipeline import Pipeline  # type: ignore[import-untyped]
 from sklearn.preprocessing import StandardScaler  # type: ignore[import-untyped]
@@ -59,6 +60,7 @@ class DgaModel:
         try:
             metadata = _mapping(json.loads(metadata_path.read_text(encoding="utf-8")))
             artifact = _mapping(metadata["artifact"])
+            environment = _mapping(metadata["environment"])
         except (OSError, UnicodeError, json.JSONDecodeError, KeyError, TypeError) as error:
             raise DgaModelError("invalid_model_metadata") from error
 
@@ -71,6 +73,8 @@ class DgaModel:
             ("decision_threshold", DECISION_THRESHOLD),
         )
         if any(metadata.get(key) != expected for key, expected in expected_metadata):
+            raise DgaModelError("incompatible_model_metadata")
+        if environment.get("scikit_learn") != sklearn.__version__:
             raise DgaModelError("incompatible_model_metadata")
         if artifact.get("filename") != artifact_path.name:
             raise DgaModelError("incompatible_model_metadata")

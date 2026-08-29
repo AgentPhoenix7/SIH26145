@@ -77,3 +77,42 @@ def test_prepare_dataset_rejects_conflicting_labels(tmp_path: Path) -> None:
             manifest_path=tmp_path / "manifest.json",
             dga_revision="0123456789abcdef",
         )
+
+
+def test_prepare_dataset_stops_parsing_family_after_selection_limit(tmp_path: Path) -> None:
+    majestic = tmp_path / "majestic.csv"
+    _write_majestic(majestic, ["example.com"])
+    dga_root = tmp_path / "dga"
+    (dga_root / "alpha").mkdir(parents=True)
+    family_file = dga_root / "alpha" / "domains.txt"
+    family_file.write_bytes(b"x1q9.example\n" + (b"unused.example\n" * 1_000) + b"\xff\n")
+
+    manifest = prepare_dataset(
+        majestic_csv=majestic,
+        dga_root=dga_root,
+        dga_files=(("alpha", "alpha/domains.txt"),),
+        output_csv=tmp_path / "dataset.csv",
+        manifest_path=tmp_path / "manifest.json",
+        dga_revision="0123456789abcdef",
+        per_family_limit=1,
+    )
+
+    assert manifest["row_counts"] == {"benign": 1, "dga": 1, "total": 2}
+
+
+def test_prepare_dataset_rejects_oversized_external_record(tmp_path: Path) -> None:
+    majestic = tmp_path / "majestic.csv"
+    _write_majestic(majestic, ["example.com"])
+    dga_root = tmp_path / "dga"
+    (dga_root / "alpha").mkdir(parents=True)
+    (dga_root / "alpha" / "domains.txt").write_bytes(b"a" * 4_097 + b"\n")
+
+    with pytest.raises(ValueError, match="dataset_line_too_long"):
+        prepare_dataset(
+            majestic_csv=majestic,
+            dga_root=dga_root,
+            dga_files=(("alpha", "alpha/domains.txt"),),
+            output_csv=tmp_path / "dataset.csv",
+            manifest_path=tmp_path / "manifest.json",
+            dga_revision="0123456789abcdef",
+        )

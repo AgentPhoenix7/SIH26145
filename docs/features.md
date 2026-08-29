@@ -69,7 +69,7 @@ The exact-threshold fixture has 100 SYN events from 20 uniformly represented RFC
 
 The watermark is the greatest accepted capture timestamp; allowed lateness is zero. Equal timestamps retain input order. A lower timestamp fails before state mutation.
 
-For a 10-second window at watermark `t`, events with timestamps lower than `t - 10` expire. An event exactly at `t - 10` remains included and expires only when the watermark advances beyond that boundary. UID deduplication similarly retains a UID at exactly its 60-second TTL boundary and permits reuse only after the boundary. Each detector owns the same zero-lateness capture-time rule and maintains independent state from the shared validated event.
+For a 10-second window at watermark `t`, events with timestamps lower than `t - 10` expire. An event exactly at `t - 10` remains included and expires only when the watermark advances beyond that boundary. UID deduplication similarly retains a UID at exactly its 60-second TTL boundary and permits reuse only after the boundary. The runner first enforces zero lateness across the combined SYN/DNS stream; each stateful SYN detector then maintains its independent watermark and rolling state.
 
 Configuration validation keeps these features internally achievable and finite. The effective scan window is normalized to six decimal places so state membership, fixed-window rate, serialized alert duration, and duration validation share the alert timestamp precision. A positive configured value that normalizes to zero is invalid. The effective window cannot exceed the UID TTL, every attempt/fan-out threshold must fit within the effective attempt capacity, and the maximum capacity divided by the window must be finite. Under default limits, the effective capacity is 4,096 attempts and the maximum window is 60 seconds.
 
@@ -121,7 +121,7 @@ Training and runtime import the same `extract_dns_features` implementation. Dots
 
 The model vector appends 128 deterministic BLAKE2b-hashed character 2-gram and 3-gram frequency buckets, producing 140 ordered finite values. Bucket counts are normalized by total label-internal n-grams. Alerts retain the 12 readable summaries and the contract recomputes them from the recorded query; the sparse buckets are not emitted.
 
-`dga_logreg_v1` is a `StandardScaler` plus class-balanced Logistic Regression artifact loaded once before Zeek starts. A probability at or above `0.5` emits `DGA`; confidence equals that probability. Severity remains `MEDIUM` below `0.85`, `HIGH` below `0.95`, and `CRITICAL` otherwise. The detector is stateless and bounded by the strict 253-byte input name and fixed 140-value vector.
+`dga_logreg_v1` is a `StandardScaler` plus class-balanced Logistic Regression artifact loaded once before Zeek starts. A probability at or above `0.5` emits `DGA`; confidence equals that probability. Severity remains `MEDIUM` below `0.85`, `HIGH` below `0.95`, and `CRITICAL` otherwise. The detector is stateless and bounded by the strict 253-byte input name and fixed 140-value vector; its alert uses equal start/end timestamps and `configured_seconds=0.0` rather than claiming a nonexistent rolling window.
 
 ## Version and Parity Status
 

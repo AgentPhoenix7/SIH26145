@@ -46,6 +46,7 @@ def test_dga_alert_carries_model_and_recomputed_lexical_evidence(
     assert alert.source.ip == event.src_ip
     assert alert.severity is expected_severity
     assert alert.window.start == alert.window.end == alert.timestamp
+    assert alert.window.configured_seconds == 0.0
     assert isinstance(alert.evidence, DgaEvidence)
     assert alert.evidence.query_name == query_name
     assert alert.evidence.query_type == 28
