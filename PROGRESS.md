@@ -5,15 +5,15 @@ Last updated: **2026-08-29 (UTC)**
 ## Current Handoff State
 
 - **Date:** 2026-08-29 (UTC)
-- **Current branch:** `main`
-- **Synchronized main commit:** `9fc30e612f4ea5accbd412610b692899b93d4ffc`
+- **Current branch:** `feature/milestone-4-local-api-dashboard`
+- **Milestone 4 base commit:** `7498634bf2e91a9540197166d876c3e381adee40`
 - **Milestone 2 merge commit:** `2e8706c404c088ee6e2312a740ff4df38dc63cbe`
 - **Milestone 2 final feature commit:** `7cb1eb513295a844ef8959616631f9f1e8fed531`
 - **Milestone 3 merge commit:** `9fc30e612f4ea5accbd412610b692899b93d4ffc`
 - **Milestone 3 final feature fix:** `d61bec43f6559e6191cb0d64309317844dbcc9a2`
-- **Current milestone:** No active implementation milestone. Milestone 3 — DNS/DGA ML is **MERGED + VERIFIED + FROZEN**; the next feature-freeze priority is the minimal local API, bounded alert storage, and dashboard.
-- **Active milestone branch:** None.
-- **Active milestone worktree:** None; only the main worktree remains.
+- **Current milestone:** Milestone 4 — minimal local API, bounded alert storage, and dashboard (**isolated worktree and baseline verified; implementation has not started**).
+- **Active milestone branch:** `feature/milestone-4-local-api-dashboard`
+- **Active milestone worktree:** `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-4-local-api-dashboard`
 - **Milestone 3 base commit:** `95159b6da04f0ee7ae6b61b3befd941842aac9bc`
 - **Milestone 3 review-fix commit:** `9965de5b85d9d3add72ff417f16ad1f9a7875c19`
 - **Milestone 3 merged pull request:** `https://github.com/AgentPhoenix7/SIH26145/pull/3`
@@ -32,6 +32,7 @@ Last updated: **2026-08-29 (UTC)**
 - Native synthetic replay processed one DNS event and emitted one 987-byte schema-valid `DGA` alert with probability `0.9999563398163442` before EOS. Native `example.com` replay processed one event and emitted exactly zero output bytes.
 - Post-review Milestone 3 gate passed on 2026-08-29: frozen sync succeeded; `320 passed in 18.13s`; Ruff lint passed; Ruff confirmed 62 files formatted; strict mypy found no issues in 47 source files; all three fixture checks, actual benign/DGA replay, strict alert and artifact validation, exact scikit-learn wheel dependency inspection, wheel-resource inspection, and `git diff --check` passed.
 - PR #3 P2 follow-up now validates the original DNS query as ASCII before lowercasing, so Unicode case mappings such as U+212A cannot become accepted ASCII identities. The Kelvin-sign regression failed before the fix; afterward 97 focused contract/feature/alert/dataset/training tests, Ruff lint/format, strict mypy, and `git diff --check` passed.
+- Fresh Milestone 4 worktree baseline at `7498634` passed on 2026-08-29: frozen `uv sync` succeeded; `321 passed in 20.48s`; Ruff lint passed; Ruff confirmed 62 files formatted; strict mypy found no issues in 47 source files; all three deterministic fixture checks and `git diff --check` passed.
 
 ### Implemented but Not Verified
 
@@ -39,7 +40,7 @@ Last updated: **2026-08-29 (UTC)**
 
 ### In Progress
 
-- None. Milestone 4 remains approval-gated; no branch or worktree exists for it.
+- Milestone 4 isolation and baseline verification are complete. API, alert-store, and dashboard implementation has not started.
 
 ### Known Problems
 
@@ -82,9 +83,9 @@ Last updated: **2026-08-29 (UTC)**
 
 ### Immediate Next Actions
 
-1. Obtain explicit approval for the exact minimum Milestone 4 local API, bounded alert-store, and dashboard plan.
-2. After approval, create a fresh `feature/milestone-4-local-api-dashboard` branch and `.worktrees/milestone-4-local-api-dashboard` linked worktree from the updated committed `main` baseline.
-3. Synchronize the locked environment and run the complete baseline suite before implementation; then record the branch, worktree, base commit, and result here.
+1. Obtain explicit direction to begin the planned-scope Milestone 4 implementation in the isolated worktree.
+2. Implement only the minimal local API, bounded in-memory alert store, approved-fixture replay integration, and same-origin static dashboard.
+3. Run the complete acceptance gate and actual API/dashboard path before adding documentation or PPT screenshot claims.
 
 ### Commands to Resume
 
@@ -99,7 +100,7 @@ Progress status vocabulary is `PLANNED`, `IN PROGRESS`, `IMPLEMENTED`, `TESTED`,
 
 ## Current Phase
 
-**Milestones 1, 2, and 3 are verified, merged, and frozen on `main`. PR #3 merged Milestone 3 at `9fc30e6`; no milestone branch or linked worktree is active.**
+**Milestones 1, 2, and 3 are verified, merged, and frozen on `main`. The isolated Milestone 4 branch/worktree is based on `7498634`, and its complete pre-implementation baseline passes; implementation has not started.**
 
 The verified path is:
 
@@ -125,10 +126,10 @@ Demonstrated detector coverage spans three of six required classes: reconnaissan
 - Versioned feature semantics: `docs/features.md`
 - Requirements traceability: `docs/requirements-traceability.md`
 - Repository: `/home/agntdrgn/WorkSpace/SIH26145`
-- Current branch: `main`
-- Current worktree: `/home/agntdrgn/WorkSpace/SIH26145`
-- Active milestone worktree: none
-- Synchronized `main` / `origin/main` commit at handoff: `9fc30e612f4ea5accbd412610b692899b93d4ffc`
+- Current branch: `feature/milestone-4-local-api-dashboard`
+- Current worktree: `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-4-local-api-dashboard`
+- Active milestone worktree: `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-4-local-api-dashboard`
+- Milestone 4 base commit: `7498634bf2e91a9540197166d876c3e381adee40`
 - Main worktree: `/home/agntdrgn/WorkSpace/SIH26145`
 - Milestone 3 merge commit: `9fc30e612f4ea5accbd412610b692899b93d4ffc`
 - Milestone 3 final feature fix: `d61bec43f6559e6191cb0d64309317844dbcc9a2`
@@ -502,7 +503,7 @@ Milestones 1 through 3 are merged, verified, and frozen. The next deadline prior
 
 1. Confirm the repository/worktree and inspect `git status`, diffs, and recent commits.
 2. Read `AGENTS.md`, `docs/problem.md`, this file, and relevant source/tests completely.
-3. Confirm `main`, the absence of an active milestone worktree, and the Milestone 3 merge commit recorded above; keep Milestones 1 through 3 frozen.
+3. Confirm the active Milestone 4 branch/worktree and base commit recorded above; keep Milestones 1 through 3 frozen.
 4. Treat this as a verified snapshot, not a substitute for fresh commands.
-5. Do not redesign frozen Milestones 1 through 3, and do not create or implement Milestone 4 before the exact plan is approved.
+5. Do not redesign frozen Milestones 1 through 3 or broaden Milestone 4 beyond the minimum planned scope.
 6. Never claim a class, model, dashboard, metric, screenshot, or benchmark without actual current evidence.
