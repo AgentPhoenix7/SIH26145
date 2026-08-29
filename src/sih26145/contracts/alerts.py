@@ -16,7 +16,14 @@ from pydantic import (
     model_validator,
 )
 
-from sih26145.contracts.events import FlowUid, StrictModel, TransportPort
+from sih26145.contracts.events import (
+    DnsCode,
+    FlowUid,
+    StrictModel,
+    TransportPort,
+    normalize_dns_name,
+)
+from sih26145.ml.dns_features import extract_dns_features
 
 NonNegativeInt = Annotated[StrictInt, Field(ge=0)]
 PositiveInt = Annotated[StrictInt, Field(gt=0)]
@@ -45,7 +52,7 @@ def _serialize_utc(value: datetime) -> str:
 class DetectorIdentity(StrictModel):
     """Identity of the detector that produced the alert."""
 
-    name: Literal["port_scan_window", "syn_flood_window"]
+    name: Literal["port_scan_window", "syn_flood_window", "dga_logistic_regression"]
     version: Literal["1.0.0"]
 
 
@@ -205,20 +212,91 @@ class SynFloodEvidence(StrictModel):
         return self
 
 
+class DgaLexicalEvidence(StrictModel):
+    """Measured `dns_features_v1` values used for one DGA decision."""
+
+    domain_length: PositiveInt
+    label_count: PositiveInt
+    longest_label_length: PositiveInt
+    mean_label_length: PositiveFloat
+    digit_ratio: Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
+    hyphen_ratio: Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
+    vowel_ratio: Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
+    unique_character_ratio: Annotated[float, Field(gt=0.0, le=1.0, allow_inf_nan=False)]
+    character_entropy_bits: NonNegativeFloat
+    unique_bigram_ratio: Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
+    longest_consonant_run: NonNegativeInt
+    longest_digit_run: NonNegativeInt
+
+
+class DgaEvidence(StrictModel):
+    """Model identity, decision, and lexical evidence for one DNS query."""
+
+    query_name: Annotated[str, Field(min_length=1, max_length=253)]
+    query_type: DnsCode
+    dga_probability: Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
+    decision_threshold: Annotated[float, Field(gt=0.0, lt=1.0, allow_inf_nan=False)]
+    model_version: Literal["dga_logreg_v1"]
+    feature_schema_version: Literal["dns_features_v1"]
+    observed_span_seconds: Annotated[float, Field(ge=0.0, le=0.0, allow_inf_nan=False)]
+    lexical_features: DgaLexicalEvidence
+
+    @field_validator("query_name", mode="before")
+    @classmethod
+    def validate_query_name(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        normalized = normalize_dns_name(value)
+        if normalized != value:
+            raise ValueError("DGA evidence query name must already be normalized")
+        return normalized
+
+    @model_validator(mode="after")
+    def validate_decision_and_features(self) -> Self:
+        if self.dga_probability < self.decision_threshold:
+            raise ValueError("DGA probability does not reach the recorded threshold")
+        expected = extract_dns_features(self.query_name)
+        observed = self.lexical_features
+        pairs = zip(
+            expected.as_vector(),
+            (
+                float(observed.domain_length),
+                float(observed.label_count),
+                float(observed.longest_label_length),
+                observed.mean_label_length,
+                observed.digit_ratio,
+                observed.hyphen_ratio,
+                observed.vowel_ratio,
+                observed.unique_character_ratio,
+                observed.character_entropy_bits,
+                observed.unique_bigram_ratio,
+                float(observed.longest_consonant_run),
+                float(observed.longest_digit_run),
+            ),
+            strict=True,
+        )
+        if any(
+            not math.isclose(expected_value, observed_value, rel_tol=1e-9, abs_tol=1e-9)
+            for expected_value, observed_value in pairs
+        ):
+            raise ValueError("DGA lexical evidence does not match the query name")
+        return self
+
+
 class AlertV1(StrictModel):
     """Common alert schema with strict evidence for each implemented detector."""
 
     schema_version: Literal["alert_v1"] = "alert_v1"
     timestamp: datetime
     flow_id: FlowUid
-    threat_class: Literal["PORT_SCAN", "SYN_FLOOD"]
-    protocol: Literal["tcp"]
+    threat_class: Literal["PORT_SCAN", "SYN_FLOOD", "DGA"]
+    protocol: Literal["tcp", "udp"]
     confidence: Annotated[float, Field(ge=0.0, le=1.0, allow_inf_nan=False)]
     severity: Severity
     detector: DetectorIdentity
     source: AlertSource
     window: AlertWindow
-    evidence: PortScanEvidence | SynFloodEvidence
+    evidence: PortScanEvidence | SynFloodEvidence | DgaEvidence
 
     @field_validator("timestamp")
     @classmethod
@@ -235,10 +313,32 @@ class AlertV1(StrictModel):
                 self.evidence, PortScanEvidence
             ):
                 raise ValueError("PORT_SCAN alert has mismatched detector or evidence")
-        elif self.detector.name != "syn_flood_window" or not isinstance(
-            self.evidence, SynFloodEvidence
+            if self.protocol != "tcp":
+                raise ValueError("PORT_SCAN alert must use TCP")
+        elif self.threat_class == "SYN_FLOOD":
+            if self.detector.name != "syn_flood_window" or not isinstance(
+                self.evidence, SynFloodEvidence
+            ):
+                raise ValueError("SYN_FLOOD alert has mismatched detector or evidence")
+            if self.protocol != "tcp":
+                raise ValueError("SYN_FLOOD alert must use TCP")
+        elif self.detector.name != "dga_logistic_regression" or not isinstance(
+            self.evidence, DgaEvidence
         ):
-            raise ValueError("SYN_FLOOD alert has mismatched detector or evidence")
+            raise ValueError("DGA alert has mismatched detector or evidence")
+
+        if isinstance(self.evidence, DgaEvidence):
+            if self.confidence != self.evidence.dga_probability:
+                raise ValueError("DGA confidence must equal the model probability")
+            if self.window.start != self.window.end:
+                raise ValueError("DGA alert window must describe one event")
+            expected_severity = Severity.MEDIUM
+            if self.confidence >= 0.95:
+                expected_severity = Severity.CRITICAL
+            elif self.confidence >= 0.85:
+                expected_severity = Severity.HIGH
+            if self.severity != expected_severity:
+                raise ValueError("DGA severity is inconsistent with confidence")
 
         observed_span = (self.window.end - self.window.start).total_seconds()
         if not math.isclose(
@@ -249,6 +349,8 @@ class AlertV1(StrictModel):
         ):
             raise ValueError("observed span is inconsistent with alert window")
 
+        if isinstance(self.evidence, DgaEvidence):
+            return self
         if isinstance(self.evidence, PortScanEvidence):
             measured_events = self.evidence.deduplicated_attempts
             measured_rate = self.evidence.attempt_rate_per_second
@@ -282,3 +384,10 @@ class SynFloodAlertV1(AlertV1):
 
     threat_class: Literal["SYN_FLOOD"]
     evidence: SynFloodEvidence
+
+
+class DgaAlertV1(AlertV1):
+    """Statically narrowed `alert_v1` record produced by DGA inference."""
+
+    threat_class: Literal["DGA"]
+    evidence: DgaEvidence
