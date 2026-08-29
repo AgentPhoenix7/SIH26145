@@ -8,10 +8,12 @@ Last updated: **2026-08-29 (UTC)**
 - **Current branch:** `feature/milestone-3-dns-dga`
 - **Milestone 2 merge commit:** `2e8706c404c088ee6e2312a740ff4df38dc63cbe`
 - **Milestone 2 final feature commit:** `7cb1eb513295a844ef8959616631f9f1e8fed531`
-- **Current milestone:** Milestone 3 — DNS/DGA ML (**VERIFIED after complete code review on the feature branch; review commit and PR pending**).
+- **Current milestone:** Milestone 3 — DNS/DGA ML (**VERIFIED after complete code review; PR #3 is open and unmerged**).
 - **Active milestone branch:** `feature/milestone-3-dns-dga`
 - **Active milestone worktree:** `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-3-dns-dga`
 - **Milestone 3 base commit:** `95159b6da04f0ee7ae6b61b3befd941842aac9bc`
+- **Milestone 3 review-fix commit:** `9965de5b85d9d3add72ff417f16ad1f9a7875c19`
+- **Milestone 3 pull request:** `https://github.com/AgentPhoenix7/SIH26145/pull/3`
 
 ### Verified Working
 
@@ -33,7 +35,7 @@ Last updated: **2026-08-29 (UTC)**
 
 ### In Progress
 
-- Complete code review and required fixes are finished. The branch is ready for its review commit, push, and pull request; merge remains unauthorized.
+- PR #3 is open against `main` with the complete reviewed branch. Await PR feedback or explicit merge direction; merge remains unauthorized.
 
 ### Known Problems
 
@@ -76,8 +78,8 @@ Last updated: **2026-08-29 (UTC)**
 
 ### Immediate Next Actions
 
-1. Commit and push the verified Milestone 3 review corrections.
-2. Open a pull request against `main` with honest 3/6 coverage and model limitations; do not merge it.
+1. Review PR #3 checks and feedback; make only required Milestone 3 corrections in this worktree.
+2. Do not merge PR #3 without explicit user instruction.
 3. After an explicitly authorized merge, create a fresh isolated milestone for the minimal local API, bounded alert storage, and dashboard; then finish the demo, benchmark, screenshots, and PPT evidence.
 
 ### Commands to Resume
@@ -93,7 +95,7 @@ Progress status vocabulary is `PLANNED`, `IN PROGRESS`, `IMPLEMENTED`, `TESTED`,
 
 ## Current Phase
 
-**Milestones 1 and 2 are verified, merged, and frozen on `main`. Milestone 3 — DNS/DGA ML is verified on its isolated feature branch and awaits review; its final verification commit is not pushed and the branch is not merged.**
+**Milestones 1 and 2 are verified, merged, and frozen on `main`. Milestone 3 — DNS/DGA ML is verified after complete code review on its isolated feature branch; PR #3 is open against `main` and is not merged.**
 
 The verified path is:
 
@@ -123,6 +125,8 @@ Demonstrated detector coverage spans three of six required classes: reconnaissan
 - Current worktree: `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-3-dns-dga`
 - Main worktree: `/home/agntdrgn/WorkSpace/SIH26145`
 - Milestone 3 base commit: `95159b6da04f0ee7ae6b61b3befd941842aac9bc`
+- Milestone 3 review-fix commit: `9965de5b85d9d3add72ff417f16ad1f9a7875c19`
+- Milestone 3 pull request: `https://github.com/AgentPhoenix7/SIH26145/pull/3`
 - Milestone 2 merged pull request: `https://github.com/AgentPhoenix7/SIH26145/pull/2`
 - Milestone 2 merge commit: `2e8706c404c088ee6e2312a740ff4df38dc63cbe`
 - Milestone 2 final feature commit: `7cb1eb513295a844ef8959616631f9f1e8fed531`
