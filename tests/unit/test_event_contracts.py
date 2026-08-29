@@ -107,6 +107,7 @@ def test_parse_valid_ipv6_tcp_dns_query() -> None:
         "_service._udp.example",
         "non ascii.example",
         "caf\N{LATIN SMALL LETTER E WITH ACUTE}.example",
+        "\N{KELVIN SIGN}.example",
     ],
 )
 def test_invalid_dns_query_names_fail(query_name: str) -> None:

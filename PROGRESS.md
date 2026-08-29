@@ -28,6 +28,7 @@ Last updated: **2026-08-29 (UTC)**
 - Milestone 3 now has a strict passive `dns_event_v1`, combined SYN/DNS Zeek stream, shared 140-value `dns_features_v1`, provenance-backed grouped training, a packaged 5,825-byte Logistic Regression artifact, local offline inference, typed `DGA` alerts, and deterministic native benign/DGA replay.
 - Native synthetic replay processed one DNS event and emitted one 987-byte schema-valid `DGA` alert with probability `0.9999563398163442` before EOS. Native `example.com` replay processed one event and emitted exactly zero output bytes.
 - Post-review Milestone 3 gate passed on 2026-08-29: frozen sync succeeded; `320 passed in 18.13s`; Ruff lint passed; Ruff confirmed 62 files formatted; strict mypy found no issues in 47 source files; all three fixture checks, actual benign/DGA replay, strict alert and artifact validation, exact scikit-learn wheel dependency inspection, wheel-resource inspection, and `git diff --check` passed.
+- PR #3 P2 follow-up now validates the original DNS query as ASCII before lowercasing, so Unicode case mappings such as U+212A cannot become accepted ASCII identities. The Kelvin-sign regression failed before the fix; afterward 97 focused contract/feature/alert/dataset/training tests, Ruff lint/format, strict mypy, and `git diff --check` passed.
 
 ### Implemented but Not Verified
 
@@ -221,6 +222,8 @@ Milestone 3 adds:
 ## Milestone 3 Code Review
 
 Complete local review, supplemented by independent read-only reviewer findings, found and corrected seven material issues before PR: training now binds the prepared CSV to its provenance manifest and records train/test class and family counts; DGA source files stream through a 4,096-byte record bound instead of whole-file loading; training rejects noncanonical domain identities before splitting; the packaged joblib requires and validates its exact scikit-learn `1.9.0` runtime; stateless DGA alerts use a truthful zero-duration window; mixed SYN/DNS timestamp regression is rejected at the stream boundary; and dataset documentation no longer claims an unrecorded retrieval timestamp. Each production correction has a focused regression.
+
+PR #3 follow-up review found that lowercasing preceded ASCII validation. `normalize_dns_name` now validates the original observed spelling as ASCII first, then removes one terminal dot and lowercases; U+212A (`KELVIN SIGN`) is a permanent event-contract regression case.
 
 ## Milestone 2 Acceptance
 

@@ -44,11 +44,11 @@ DnsCode = Annotated[StrictInt, Field(ge=1, le=65_535)]
 def normalize_dns_name(value: str) -> str:
     """Return one strict lowercase LDH query name without a terminal dot."""
 
-    normalized = value.removesuffix(".").lower()
     try:
-        normalized.encode("ascii", errors="strict")
+        value.encode("ascii", errors="strict")
     except UnicodeEncodeError:
         raise ValueError("DNS query name must be ASCII") from None
+    normalized = value.removesuffix(".").lower()
     if not 1 <= len(normalized) <= 253:
         raise ValueError("DNS query name length is outside 1..253")
     for label in normalized.split("."):
