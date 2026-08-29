@@ -1,16 +1,17 @@
 # SIH26145 Progress and Conversation Handoff
 
-Last updated: **2026-08-28 (UTC)**
+Last updated: **2026-08-29 (UTC)**
 
 ## Current Handoff State
 
-- **Date:** 2026-08-28 (UTC)
-- **Current branch:** `main`
+- **Date:** 2026-08-29 (UTC)
+- **Current branch:** `feature/milestone-3-dns-dga`
 - **Milestone 2 merge commit:** `2e8706c404c088ee6e2312a740ff4df38dc63cbe`
 - **Milestone 2 final feature commit:** `7cb1eb513295a844ef8959616631f9f1e8fed531`
-- **Current milestone:** Milestone 2 — Streaming SYN-DDoS (**MERGED + VERIFIED + FROZEN**); Milestone 3 DNS/DGA ML is awaiting exact-plan approval.
-- **Active milestone branch:** None; only `main` remains.
-- **Active milestone worktree:** None; only `/home/agntdrgn/WorkSpace/SIH26145` remains.
+- **Current milestone:** Milestone 3 — DNS/DGA ML (**PLANNED**); its isolated baseline is verified, but implementation has not started.
+- **Active milestone branch:** `feature/milestone-3-dns-dga`
+- **Active milestone worktree:** `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-3-dns-dga`
+- **Milestone 3 base commit:** `95159b6da04f0ee7ae6b61b3befd941842aac9bc`
 
 ### Verified Working
 
@@ -21,6 +22,7 @@ Last updated: **2026-08-28 (UTC)**
 - Milestone 2 is **MERGED + VERIFIED + FROZEN** by PR #2 at merge commit `2e8706c`; the merged final feature commit is `7cb1eb5`. Native exact-threshold replay emitted one typed `SYN_FLOOD` alert before EOS; below-threshold and distributed-benign outputs were zero bytes.
 - PR review identified avoidable high-cardinality work: every SYN recomputed entropy across all sources and sorted them before alert eligibility. The merged test-first correction maintains `sum(count * log2(count))` during source-count changes and sorts samples only while building an eligible alert.
 - Fresh merged-`main` native replay produced one 794-byte schema-valid `SYN_FLOOD` alert with 100 deduplicated SYN events, 20 unique sources, entropy `4.32192809488736`, fixed-window rate `10.0`, observed span `4.95`, and confidence `0.75`. The below-threshold and distributed-benign replays each produced exactly zero output bytes; the suite includes native alert-before-EOS tests.
+- Fresh Milestone 3 worktree baseline at `95159b6` passed on 2026-08-29: frozen `uv sync` succeeded; `240 passed in 16.24s`; Ruff lint passed; Ruff confirmed 41 files formatted; strict mypy found no issues in 30 source files; both deterministic fixture checks passed.
 
 ### Implemented but Not Verified
 
@@ -28,7 +30,7 @@ Last updated: **2026-08-28 (UTC)**
 
 ### In Progress
 
-- No implementation milestone is active. The minimum Milestone 3 DNS/DGA ML plan is awaiting explicit user approval.
+- Milestone 3 isolation and baseline verification are complete. No DNS/DGA dataset has been imported, no model has been trained, and no runtime implementation has started.
 
 ### Known Problems
 
@@ -69,10 +71,9 @@ Last updated: **2026-08-28 (UTC)**
 
 ### Immediate Next Actions
 
-1. Obtain explicit approval for the minimum Milestone 3 DNS/DGA ML plan.
-2. After approval, create `feature/milestone-3-dns-dga` in a fresh linked worktree at `.worktrees/milestone-3-dns-dga` from the updated `main` baseline.
-3. Synchronize the locked environment, run the full baseline gate, and record the branch, worktree, base commit, and evidence before implementation.
-4. Complete only the genuine trained-and-locally-deployed DNS/DGA path; then return to the minimal API/dashboard, reproducible demo, measured benchmark, and final submission evidence.
+1. Await explicit approval to begin the minimum Milestone 3 DNS/DGA ML implementation.
+2. After approval, work only in the verified `feature/milestone-3-dns-dga` worktree and complete the genuine trained-and-locally-deployed DNS/DGA path.
+3. Then return to the minimal API/dashboard, reproducible demo, measured benchmark, and final submission evidence.
 
 ### Commands to Resume
 
@@ -87,7 +88,7 @@ Progress status vocabulary is `PLANNED`, `IN PROGRESS`, `IMPLEMENTED`, `TESTED`,
 
 ## Current Phase
 
-**Milestones 1 and 2 are verified, merged, and frozen on `main`. Milestone 3 — DNS/DGA ML is planned but not approved or started.**
+**Milestones 1 and 2 are verified, merged, and frozen on `main`. Milestone 3 — DNS/DGA ML has a verified isolated baseline but is not implemented.**
 
 The verified path is:
 
@@ -112,9 +113,10 @@ Demonstrated detector coverage spans two of six required classes: reconnaissance
 - Versioned feature semantics: `docs/features.md`
 - Requirements traceability: `docs/requirements-traceability.md`
 - Repository: `/home/agntdrgn/WorkSpace/SIH26145`
-- Current branch: `main`
-- Current worktree: `/home/agntdrgn/WorkSpace/SIH26145`
-- Active linked milestone worktree: none
+- Current branch: `feature/milestone-3-dns-dga`
+- Current worktree: `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-3-dns-dga`
+- Main worktree: `/home/agntdrgn/WorkSpace/SIH26145`
+- Milestone 3 base commit: `95159b6da04f0ee7ae6b61b3befd941842aac9bc`
 - Milestone 2 merged pull request: `https://github.com/AgentPhoenix7/SIH26145/pull/2`
 - Milestone 2 merge commit: `2e8706c404c088ee6e2312a740ff4df38dc63cbe`
 - Milestone 2 final feature commit: `7cb1eb513295a844ef8959616631f9f1e8fed531`
@@ -213,6 +215,21 @@ Milestone 2 adds:
 - [x] Requirements traceability, feature documentation, PPT facts, and this handoff are current.
 
 ## Exact Evidence Commands
+
+Fresh Milestone 3 isolation and baseline verification was run from the dedicated worktree on 2026-08-29:
+
+```bash
+git worktree add .worktrees/milestone-3-dns-dga -b feature/milestone-3-dns-dga main
+UV_CACHE_DIR=/tmp/sih26145-m3-uv-cache uv sync --frozen --group dev
+UV_CACHE_DIR=/tmp/sih26145-m3-uv-cache uv run pytest
+UV_CACHE_DIR=/tmp/sih26145-m3-uv-cache uv run ruff check .
+UV_CACHE_DIR=/tmp/sih26145-m3-uv-cache uv run ruff format --check .
+UV_CACHE_DIR=/tmp/sih26145-m3-uv-cache uv run mypy src tests tools
+UV_CACHE_DIR=/tmp/sih26145-m3-uv-cache uv run python tools/generate_milestone1_fixtures.py --output tests/fixtures/milestone1 --check
+UV_CACHE_DIR=/tmp/sih26145-m3-uv-cache uv run python tools/generate_milestone2_fixtures.py --output tests/fixtures/milestone2 --check
+```
+
+The branch and linked worktree were created from `95159b6`. The first sandboxed sync attempt failed only because external DNS was restricted; the identical frozen sync succeeded with dependency-download access. Verification then reported `240 passed in 16.24s`, `All checks passed!`, `41 files already formatted`, `Success: no issues found in 30 source files`, and zero-exit fixture checks. No Milestone 3 implementation or dataset import occurred.
 
 Fresh Milestone 2 verification was run from the dedicated worktree on 2026-08-28:
 
@@ -413,13 +430,13 @@ The approved plan remained deliberately limited to SYN flood. All ten items are 
 9. Run the focused and full suites, replay real benign and flood fixtures, validate actual alert JSON, then update only affected README, architecture, feature, traceability, PPT, and progress documentation.
 10. Freeze Milestone 2 immediately after acceptance; UDP reflection/amplification remains deferred unless later schedule review proves it cheap and Tier 1 stays safe.
 
-Milestone 2 is merged and frozen. Do not create the Milestone 3 branch/worktree or begin passive DNS/DGA implementation until the user approves the exact plan. The next deadline priority is the smallest genuine trained, evaluated, persisted, and locally integrated DNS/DGA ML path; after that, finish the minimal API/dashboard, reproducible demo, measured benchmark, and submission evidence.
+Milestone 2 is merged and frozen. The Milestone 3 branch/worktree now exists at the user's request, but passive DNS/DGA implementation must not begin until the user explicitly approves it. The next deadline priority is the smallest genuine trained, evaluated, persisted, and locally integrated DNS/DGA ML path; after that, finish the minimal API/dashboard, reproducible demo, measured benchmark, and submission evidence.
 
 ## Handoff Checklist
 
 1. Confirm the repository/worktree and inspect `git status`, diffs, and recent commits.
 2. Read `AGENTS.md`, `docs/problem.md`, this file, and relevant source/tests completely.
-3. Confirm `main` is the current branch, only the main worktree exists, and Milestone 2 remains frozen.
+3. Confirm the active Milestone 3 branch/worktree and base commit recorded above, and keep Milestone 2 frozen.
 4. Treat this as a verified snapshot, not a substitute for fresh commands.
-5. Do not create or implement Milestone 3 until the user explicitly approves its exact plan.
+5. Do not implement Milestone 3 until the user explicitly approves it.
 6. Never claim a class, model, dashboard, metric, screenshot, or benchmark without actual current evidence.
