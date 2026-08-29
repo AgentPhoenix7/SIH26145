@@ -1,6 +1,6 @@
 # SIH26145 Requirements Traceability
 
-Last verified: **2026-08-28 (UTC)**
+Last verified: **2026-08-29 (UTC)**
 
 Status vocabulary is restricted to `PLANNED`, `IN PROGRESS`, `IMPLEMENTED`, `VERIFIED`, and `DEFERRED`. `VERIFIED` below means current command or inspection evidence exists for the precise row; it does not imply the entire official solution is complete.
 
@@ -9,15 +9,15 @@ Status vocabulary is restricted to `PLANNED`, `IN PROGRESS`, `IMPLEMENTED`, `VER
 | Official requirement | Milestone interpretation | Implementation / evidence | Status |
 | --- | --- | --- | --- |
 | Read-only, unidirectional ingest | Replay must consume a PCAP without any return-path action. | Native `zeek -D -b -r` reads the committed fixture; the policy emits metadata only; e2e replay passes. | VERIFIED |
-| No active probing, handshake completion, inline block, or mitigation | Observed addresses remain values and never become destinations or commands. | Runner invokes only local Zeek with an argument vector; policy and detector open no network path; process-boundary tests pass. | VERIFIED |
+| No active probing, handshake completion, inline block, or mitigation | Observed addresses and domains remain values and never become destinations or commands. | Runner invokes only local Zeek with an argument vector; socket-disabled DGA inference and process-boundary tests pass; no resolver or enrichment path exists. | VERIFIED |
 | No payload decryption | Scan and SYN-flood detection must depend only on observable SYN metadata. | `tcp_syn_attempt_v1` contains timestamp, UID, endpoints, ports, and transport; the verified path has no payload or decryption component. | VERIFIED |
-| Streaming, not whole-file batch reporting | An alert must be delivered before the Zeek EOS record is accepted, and a stalled record must not block forever. | Native port-scan and SYN-flood replay tests both observe `alert,end_of_stream`; focused integration coverage proves a flushed partial pre-EOS record reaches a named inactivity timeout and the direct child is reaped. | VERIFIED |
+| Streaming, not whole-file batch reporting | An alert must be delivered before the Zeek EOS record is accepted, and a stalled record must not block forever. | Native port-scan, SYN-flood, and DGA replay tests observe `alert,end_of_stream`; focused integration coverage proves mixed SYN/DNS accounting and bounded partial-record failure/cleanup. | VERIFIED |
 | Bounded alert latency | Operational alerting must have a stated and measured bound. | Incremental callback and flush are implemented, but wall-clock detector/end-to-end latency and P50/P95/P99 are not measured. | PLANNED |
 | Bounded and safe state | Windows, deduplication, cooldown, input lines, and child pipes require explicit limits and failure behavior. | Focused tests cover the source-keyed scan and target-keyed SYN-flood limits, constant-work incremental entropy updates, deferred alert-only source sorting, retry-safe cooldown-capacity rollback, expiry, exact boundaries, finite derived-rate validation, achievable thresholds, window/UID-TTL consistency, the private 64-KiB stderr tail, bounded pre-EOS record inactivity, pre-EOS terminate-to-kill grace, and one absolute post-EOS deadline. | VERIFIED |
-| Standardized alert schema | Alert includes timestamp, flow ID, class, confidence, and supporting evidence. | Actual port-scan and SYN-flood CLI lines validate as strict `alert_v1` and include detector, source, protocol, severity, window, thresholds, and typed measured evidence. | VERIFIED |
+| Standardized alert schema | Alert includes timestamp, flow ID, class, confidence, and supporting evidence. | Actual port-scan, SYN-flood, and DGA CLI lines validate as strict `alert_v1`; DGA evidence includes model/feature versions, threshold, query, and recomputed lexical summaries. | VERIFIED |
 | Defined and demonstrated throughput target | State sustained traffic rate and methodology. | No throughput, CPU, memory, or latency benchmark has been run. | PLANNED |
-| Working ingest, feature extraction, model inference, and alert prototype | Full prototype must include a genuine deployed model. | Ingest, port-scan and SYN-flood features, heuristic detection, and alert output work; genuine ML training/export/offline inference remains absent. | IN PROGRESS |
-| Model/features/training-validation documentation | Preserve shared features, grouped splits, metrics, selection, and limitations. | Scan feature semantics are documented; no model or training evaluation exists yet. | IN PROGRESS |
+| Working ingest, feature extraction, model inference, and alert prototype | Full prototype must include a genuine deployed model. | Native replay emits strict SYN/DNS events; shared `dns_features_v1` feeds packaged `dga_logreg_v1`; local offline inference emits one actual DGA alert. | VERIFIED |
+| Model/features/training-validation documentation | Preserve shared features, grouped splits, metrics, selection, and limitations. | Dataset provenance, 140 ordered features, family-disjoint split, held-out precision/recall/F1/FPR, artifact integrity, CPU inference, and limitations are recorded. | VERIFIED |
 | Simple live or replay dashboard | Display detections with severity and confidence. | No API or dashboard exists; Bun is reserved for later frontend work. | PLANNED |
 
 ## Required Threat Coverage
@@ -26,12 +26,12 @@ Status vocabulary is restricted to `PLANNED`, `IN PROGRESS`, `IMPLEMENTED`, `VER
 | --- | --- | --- | --- |
 | Volumetric/protocol DDoS: SYN flood, UDP reflection/amplification, spoofed-source characteristics | Destination SYN rate, unique-source count, and source entropy on the streaming path. | Native exact-threshold SYN-flood replay emits one typed alert before EOS; 99-event and distributed-benign fixtures emit none. Entropy is distribution evidence, not proof of spoofing. UDP reflection/amplification and stronger spoofed-source inference remain deferred. | IN PROGRESS |
 | Botnet C2 beaconing | Jitter-tolerant periodicity/inter-arrival analysis. | No C2 events, features, detector, or scenario exists. | PLANNED |
-| DGA domains and DNS tunnelling | Passive DNS lexical/statistical features plus genuine supervised ML where supported. | No DNS runtime schema, licensed corpus, model, or tunnelling scenario exists. | PLANNED |
+| DGA domains and DNS tunnelling | Passive DNS lexical/statistical features plus genuine supervised ML where supported. | DGA is verified through strict request events, provenance-backed grouped training, packaged offline Logistic Regression, typed evidence, and native benign/DGA replay. DNS tunnelling is not implemented. | IN PROGRESS |
 | Encrypted-session malware indicators | Visible TLS/QUIC metadata only, never decrypted payload. | No TLS/QUIC feature or detector exists. | PLANNED |
 | Reconnaissance and port scanning | Per-source deduplicated SYN fan-out across destination ports or hosts. | Native vertical/horizontal replay tests, bounded state tests, strict alert validation, and one actual threshold alert pass. | VERIFIED |
 | Data exfiltration | Asymmetric flow volume and baseline-aware outbound/inbound behavior. | No byte-volume event, baseline, detector, or controlled scenario exists. | PLANNED |
 
-Demonstrated detector coverage spans **2 of 6 named classes: reconnaissance/port scanning and the SYN-flood subset of volumetric/protocol DDoS**. The DDoS class is not complete because UDP reflection/amplification is deferred.
+Demonstrated detector coverage spans **3 of 6 named classes: reconnaissance/port scanning, the SYN-flood subset of volumetric/protocol DDoS, and DGA lexical detection**. DDoS is incomplete because UDP reflection/amplification is deferred; the combined DGA/DNS-tunnelling class is incomplete because tunnelling is deferred.
 
 ## Reproduction Evidence
 
@@ -46,12 +46,14 @@ uv run ruff format --check .
 uv run mypy src tests tools
 uv run python tools/generate_milestone1_fixtures.py --output tests/fixtures/milestone1 --check
 uv run python tools/generate_milestone2_fixtures.py --output tests/fixtures/milestone2 --check
+uv run python tools/generate_milestone3_fixtures.py --output tests/fixtures/milestone3 --check
 uv run sih26145-replay tests/fixtures/milestone1/vertical_at_threshold.pcap > /tmp/sih26145-scan-alerts.jsonl
 uv run sih26145-replay tests/fixtures/milestone1/benign.pcap > /tmp/sih26145-benign-alerts.jsonl
 uv run sih26145-replay tests/fixtures/milestone2/syn_flood_at_threshold.pcap > /tmp/sih26145-flood-alerts.jsonl
 uv run sih26145-replay tests/fixtures/milestone2/syn_flood_below.pcap > /tmp/sih26145-flood-below-alerts.jsonl
 uv run sih26145-replay tests/fixtures/milestone2/benign_distributed.pcap > /tmp/sih26145-flood-benign-alerts.jsonl
-uv run python -c 'from pathlib import Path; from sih26145.contracts.alerts import AlertV1; scan=Path("/tmp/sih26145-scan-alerts.jsonl").read_text().splitlines(); flood=Path("/tmp/sih26145-flood-alerts.jsonl").read_text().splitlines(); assert len(scan)==len(flood)==1; assert AlertV1.model_validate_json(scan[0]).threat_class=="PORT_SCAN"; assert AlertV1.model_validate_json(flood[0]).threat_class=="SYN_FLOOD"; assert Path("/tmp/sih26145-benign-alerts.jsonl").read_bytes()==Path("/tmp/sih26145-flood-below-alerts.jsonl").read_bytes()==Path("/tmp/sih26145-flood-benign-alerts.jsonl").read_bytes()==b""'
+uv run sih26145-replay tests/fixtures/milestone3/dga_dns.pcap > /tmp/sih26145-dga-alerts.jsonl
+uv run sih26145-replay tests/fixtures/milestone3/benign_dns.pcap > /tmp/sih26145-dns-benign-alerts.jsonl
 ```
 
-Fresh 2026-08-28 Milestone 2 evidence after the PR performance correction: all 240 tests passed; Ruff lint passed; Ruff confirmed 41 files formatted; strict mypy found no issues in 30 source files; both fixture checks passed. The SYN-flood threshold fixture SHA-256 is `712bb6ea6da09fe4b7cb7af184f00110dc755d32a667e68e2e94cdb08b1be76d`; native replay processed 100 events and emitted one 794-byte schema-valid alert, while the 99-event and distributed-benign outputs were exactly zero bytes. Native callback order was `alert,end_of_stream`. Milestone 1's merged evidence remains preserved in `PROGRESS.md`.
+Milestone 3 measured evidence: artifact SHA-256 `0627eea04dec557ccf4e6ab2382b6d1e432380bcfa140908dd0da68798e03f47`, precision `0.7188`, recall `0.2513`, F1 `0.3724`, and FPR `0.0722`. Native synthetic replay processed one DNS event and emitted one 987-byte schema-valid DGA alert with probability `0.9999563398163442` before EOS; native `example.com` replay emitted exactly zero bytes. Milestones 1 and 2 evidence remains preserved in `PROGRESS.md`.

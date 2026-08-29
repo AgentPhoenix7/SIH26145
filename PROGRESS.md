@@ -8,7 +8,7 @@ Last updated: **2026-08-29 (UTC)**
 - **Current branch:** `feature/milestone-3-dns-dga`
 - **Milestone 2 merge commit:** `2e8706c404c088ee6e2312a740ff4df38dc63cbe`
 - **Milestone 2 final feature commit:** `7cb1eb513295a844ef8959616631f9f1e8fed531`
-- **Current milestone:** Milestone 3 — DNS/DGA ML (**PLANNED**); its isolated baseline is verified, but implementation has not started.
+- **Current milestone:** Milestone 3 — DNS/DGA ML (**VERIFIED on the feature branch; final verification commit not pushed or merged**).
 - **Active milestone branch:** `feature/milestone-3-dns-dga`
 - **Active milestone worktree:** `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-3-dns-dga`
 - **Milestone 3 base commit:** `95159b6da04f0ee7ae6b61b3befd941842aac9bc`
@@ -23,19 +23,22 @@ Last updated: **2026-08-29 (UTC)**
 - PR review identified avoidable high-cardinality work: every SYN recomputed entropy across all sources and sorted them before alert eligibility. The merged test-first correction maintains `sum(count * log2(count))` during source-count changes and sorts samples only while building an eligible alert.
 - Fresh merged-`main` native replay produced one 794-byte schema-valid `SYN_FLOOD` alert with 100 deduplicated SYN events, 20 unique sources, entropy `4.32192809488736`, fixed-window rate `10.0`, observed span `4.95`, and confidence `0.75`. The below-threshold and distributed-benign replays each produced exactly zero output bytes; the suite includes native alert-before-EOS tests.
 - Fresh Milestone 3 worktree baseline at `95159b6` passed on 2026-08-29: frozen `uv sync` succeeded; `240 passed in 16.24s`; Ruff lint passed; Ruff confirmed 41 files formatted; strict mypy found no issues in 30 source files; both deterministic fixture checks passed.
+- Milestone 3 now has a strict passive `dns_event_v1`, combined SYN/DNS Zeek stream, shared 140-value `dns_features_v1`, provenance-backed grouped training, a packaged 5,825-byte Logistic Regression artifact, local offline inference, typed `DGA` alerts, and deterministic native benign/DGA replay.
+- Native synthetic replay processed one DNS event and emitted one 987-byte schema-valid `DGA` alert with probability `0.9999563398163442` before EOS. Native `example.com` replay processed one event and emitted exactly zero output bytes.
+- Final Milestone 3 gate passed on 2026-08-29: frozen sync succeeded; `313 passed in 17.41s`; Ruff lint passed; Ruff confirmed 62 files formatted; strict mypy found no issues in 47 source files; all three fixture checks, actual benign/DGA replay, strict alert and artifact validation, wheel-resource inspection, and `git diff --check` passed.
 
 ### Implemented but Not Verified
 
-- None currently recorded.
+- None for Milestone 3. End-to-end benchmark, API/dashboard, screenshots, and later threat coverage remain separate unfinished scope.
 
 ### In Progress
 
-- Milestone 3 isolation and baseline verification are complete. No DNS/DGA dataset has been imported, no model has been trained, and no runtime implementation has started.
+- Awaiting user review and explicit instructions for push/merge. No further Milestone 3 feature work is planned.
 
 ### Known Problems
 
-- UDP reflection/amplification, DNS/DGA ML, API, dashboard, offline inference, and benchmarking are not implemented.
-- Demonstrated detector coverage spans two of six named classes, but DDoS is limited to SYN floods; no full-coverage claim is valid.
+- UDP reflection/amplification, DNS tunnelling, API, dashboard, and end-to-end benchmarking are not implemented.
+- Demonstrated detector coverage spans three of six named classes, but DDoS is limited to SYN floods and DNS coverage to DGA lexical classification; no full-coverage claim is valid.
 
 ### Deferred
 
@@ -54,26 +57,28 @@ Last updated: **2026-08-29 (UTC)**
 ### Dataset / ML State
 
 - No downloadable official SIH26145 dataset was found as of the recorded 2026-08-26 research.
-- No DNS/DGA dataset has been selected or imported and no genuine model has been trained.
+- The ignored prepared dataset contains 20,000 Majestic benign-proxy domains and 7,723 examples from eight pinned DGA families. DGA test families are `kraken_v1` and `simda`; family overlap and domain overlap are zero.
+- Held-out precision is `0.7187797902764538`, recall `0.25133333333333335`, F1 `0.37243763892319093`, and false-positive rate `0.07223310479921645`. These controlled-source results are not production claims.
 
 ### Model Artifacts
 
-- None. Model persistence, Hugging Face storage, and offline inference are not implemented.
+- Packaged artifact: `src/sih26145/artifacts/dga_logreg_v1.joblib`, 5,825 bytes, SHA-256 `0627eea04dec557ccf4e6ab2382b6d1e432380bcfa140908dd0da68798e03f47`.
+- The strict metadata sidecar records features, preprocessing, labels, threshold, sources, split, evaluation, environment, and measured batch inference. Runtime loads and validates both locally before Zeek starts; no remote storage or Internet inference is required.
 
 ### Benchmark State
 
-- No throughput, CPU, memory, or wall-clock alert-latency percentile has been measured.
+- End-to-end throughput, CPU, memory, and wall-clock alert-latency percentiles are unmeasured. Model-only batch inference measured `2.340909655567489` microseconds/domain (`427184.36297686916` domains/second) and must not be presented as pipeline throughput.
 
 ### SIH Compliance State
 
 - The current verified path is passive, read-only, incremental, bounded-state, no-decryption, and evidence-producing. See the detailed compliance snapshot below.
-- Demonstrated detector coverage spans 2/6 named classes: reconnaissance/port scanning and the SYN-flood subset of volumetric/protocol DDoS.
+- Demonstrated detector coverage spans 3/6 named classes: reconnaissance/port scanning, the SYN-flood subset of volumetric/protocol DDoS, and DGA lexical detection.
 
 ### Immediate Next Actions
 
-1. Await explicit approval to begin the minimum Milestone 3 DNS/DGA ML implementation.
-2. After approval, work only in the verified `feature/milestone-3-dns-dga` worktree and complete the genuine trained-and-locally-deployed DNS/DGA path.
-3. Then return to the minimal API/dashboard, reproducible demo, measured benchmark, and final submission evidence.
+1. Commit the verified Milestone 3 fixture/documentation slice without pushing or merging.
+2. Await explicit user direction for review, push, and merge.
+3. After merge, create a fresh isolated milestone for the minimal local API, bounded alert storage, and dashboard; then finish the demo, benchmark, screenshots, and PPT evidence.
 
 ### Commands to Resume
 
@@ -88,22 +93,23 @@ Progress status vocabulary is `PLANNED`, `IN PROGRESS`, `IMPLEMENTED`, `TESTED`,
 
 ## Current Phase
 
-**Milestones 1 and 2 are verified, merged, and frozen on `main`. Milestone 3 — DNS/DGA ML has a verified isolated baseline but is not implemented.**
+**Milestones 1 and 2 are verified, merged, and frozen on `main`. Milestone 3 — DNS/DGA ML is verified on its isolated feature branch and awaits review; its final verification commit is not pushed and the branch is not merged.**
 
 The verified path is:
 
 ```text
 deterministic PCAP replay
-  -> native Zeek originator-SYN events
+  -> native Zeek originator-SYN and DNS-request events
   -> versioned JSON Lines
   -> strict Python validation
   -> synchronous detector pipeline
      -> bounded capture-time source fan-out state
      -> bounded capture-time target SYN state
-  -> evidence-bearing alert_v1 PORT_SCAN / SYN_FLOOD output
+     -> shared lexical features + packaged local Logistic Regression
+  -> evidence-bearing alert_v1 PORT_SCAN / SYN_FLOOD / DGA output
 ```
 
-Demonstrated detector coverage spans two of six required classes: reconnaissance/port scanning and the SYN-flood subset of volumetric/protocol DDoS. UDP reflection/amplification, C2 beaconing, DNS/DGA or tunnelling, encrypted-session malware metadata, data exfiltration, genuine ML, an API/dashboard, and performance benchmarking remain absent.
+Demonstrated detector coverage spans three of six required classes: reconnaissance/port scanning, the SYN-flood subset of volumetric/protocol DDoS, and DGA lexical detection. UDP reflection/amplification, C2 beaconing, DNS tunnelling, encrypted-session malware metadata, data exfiltration, an API/dashboard, and end-to-end benchmarking remain absent.
 
 ## Authoritative Context and Git State
 
@@ -186,6 +192,28 @@ Milestone 2 adds:
 - Public CLI options for the SYN-flood window, event threshold, source threshold, and target cooldown; invalid combinations fail before Zeek starts with a trusted diagnostic.
 - Three deterministic offline RFC 5737 fixtures: exact threshold, 99-event below threshold, and 100 events distributed across 10 targets. Manifests record parameters, hashes, timestamps, endpoints, expected outcomes, and no-network provenance.
 
+Milestone 3 adds:
+
+- Strict request-only `dns_event_v1` records for UDP/TCP, with lowercase LDH-only names, bounded lines, validated endpoints/codes/timestamps, and one EOS count shared with SYN events.
+- One shared `dns_features_v1` extractor: 12 explainable lexical summaries plus 128 normalized hashed character n-gram buckets, used unchanged by training and runtime.
+- Offline bounded preparation from the Majestic Million and eight pinned GPL-2.0 DGA example families, with source hashes, caps, duplicate rejection, and ignored corpora.
+- Family-disjoint DGA and stable hash-based benign splitting with zero domain overlap; one CPU `StandardScaler` + class-balanced Logistic Regression candidate at fixed threshold `0.5`.
+- A strict packaged model loader that validates artifact/feature/model versions, labels, threshold, ordered features, bytes, SHA-256, and sklearn pipeline shape before local inference.
+- Stateless DNS routing and typed `DGA` `alert_v1` evidence containing actual probability, query, query type, threshold, model/feature identities, and recomputed lexical summaries.
+- Two deterministic offline DNS PCAPs and manifests. Synthetic DGA replay alerts before EOS; controlled benign replay emits no alert.
+
+## Milestone 3 Acceptance
+
+- [x] Dataset source, licence, format, restrictions, hashes, revision, selected files, and limitations are recorded.
+- [x] Strict passive DNS request validation and combined native stream behavior have focused tests.
+- [x] Training and runtime share one versioned 140-value lexical feature implementation.
+- [x] Preparation is bounded; DGA families are held out whole; train/test domains do not overlap.
+- [x] The actual Logistic Regression model, metadata, labels, preprocessing, feature order, evaluation, and artifact hash are persisted.
+- [x] Runtime inference is local/offline, validates the packaged artifact before Zeek, and performs bounded stateless work per DNS record.
+- [x] DGA alerts use strict typed evidence and deterministic probability-based severity.
+- [x] Native DGA replay emits one strict alert before EOS and native benign DNS replay emits zero bytes.
+- [x] Final full locked test/lint/type/fixture/replay/documentation and wheel-resource gate passed.
+
 ## Milestone 2 Acceptance
 
 - [x] Reuses the frozen `tcp_syn_attempt_v1` and Zeek policy unchanged.
@@ -215,6 +243,25 @@ Milestone 2 adds:
 - [x] Requirements traceability, feature documentation, PPT facts, and this handoff are current.
 
 ## Exact Evidence Commands
+
+Fresh final Milestone 3 verification was run from the dedicated worktree on 2026-08-29:
+
+```bash
+UV_CACHE_DIR=/tmp/sih26145-m3-uv-cache uv sync --frozen --group dev
+UV_CACHE_DIR=/tmp/sih26145-m3-uv-cache uv run pytest
+UV_CACHE_DIR=/tmp/sih26145-m3-uv-cache uv run ruff check .
+UV_CACHE_DIR=/tmp/sih26145-m3-uv-cache uv run ruff format --check .
+UV_CACHE_DIR=/tmp/sih26145-m3-uv-cache uv run mypy src tests tools
+UV_CACHE_DIR=/tmp/sih26145-m3-uv-cache uv run python tools/generate_milestone1_fixtures.py --output tests/fixtures/milestone1 --check
+UV_CACHE_DIR=/tmp/sih26145-m3-uv-cache uv run python tools/generate_milestone2_fixtures.py --output tests/fixtures/milestone2 --check
+UV_CACHE_DIR=/tmp/sih26145-m3-uv-cache uv run python tools/generate_milestone3_fixtures.py --output tests/fixtures/milestone3 --check
+UV_CACHE_DIR=/tmp/sih26145-m3-uv-cache uv run sih26145-replay tests/fixtures/milestone3/dga_dns.pcap > /tmp/sih26145-m3-final-dga.jsonl
+UV_CACHE_DIR=/tmp/sih26145-m3-uv-cache uv run sih26145-replay tests/fixtures/milestone3/benign_dns.pcap > /tmp/sih26145-m3-final-benign.jsonl
+UV_CACHE_DIR=/tmp/sih26145-m3-uv-cache uv build
+git diff --check
+```
+
+Observed results: `313 passed in 17.41s`; Ruff lint passed; Ruff confirmed 62 files formatted; strict mypy found no issues in 47 source files; all three fixture checks exited `0`. The actual DGA output was one line and 987 bytes, validated as strict `alert_v1` with probability `0.9999563398163442`; benign output was zero bytes. Artifact size/hash validation passed at 5,825 bytes and SHA-256 `0627eea04dec557ccf4e6ab2382b6d1e432380bcfa140908dd0da68798e03f47`. The built wheel contains the joblib artifact, metadata sidecar, combined Zeek policy, and `py.typed`. `git diff --check` passed.
 
 Fresh Milestone 3 isolation and baseline verification was run from the dedicated worktree on 2026-08-29:
 
@@ -386,23 +433,24 @@ The real-child partial-line regression was observed remaining blocked before the
 ```text
 Read-only ingest:             VERIFIED for deterministic PCAP replay
 Active probing/return path:   ABSENT and verified for the current path
-Payload decryption:           ABSENT and verified for scan and SYN-flood paths
-Streaming processing:         VERIFIED; both class callbacks precede EOS
+Payload decryption:           ABSENT and verified for SYN and DNS/DGA paths
+Streaming processing:         VERIFIED; all three class callbacks precede EOS
 Bounded alert latency:        Incremental path implemented; wall-time percentiles NOT MEASURED
-Alert schema/evidence:        VERIFIED with actual strict PORT_SCAN and SYN_FLOOD records
-Dataset research/provenance:  Official-resource research recorded; local fixture provenance VERIFIED
-ML model trained:             NO
-Model storage/resume:         NO; no model exists
-Offline model inference:      NO; no model exists
-Threat coverage:              2 / 6 demonstrated; DDoS limited to SYN flood
+Alert schema/evidence:        VERIFIED with actual strict PORT_SCAN, SYN_FLOOD, and DGA records
+Dataset research/provenance:  Source licences/hashes/revision and fixture provenance VERIFIED
+ML model trained:             VERIFIED for dga_logreg_v1 with grouped held-out evaluation
+Model storage/resume:         Packaged joblib + strict metadata VERIFIED; remote resume NOT APPLICABLE
+Offline model inference:      VERIFIED for packaged local DGA model with socket disabled
+Threat coverage:              3 / 6 demonstrated; DDoS limited to SYN flood, DNS limited to DGA
 Throughput measured:          NO
-Demo reproducible:            VERIFIED for native scan, SYN-flood, below-threshold, and benign replay
+Demo reproducible:            VERIFIED for native scan, SYN-flood, DGA, and comparison replay
 PPT evidence:                 Verified facts recorded; screenshots and performance plots NOT CAPTURED
 ```
 
 ## Limitations and Risks
 
-- Implemented rules cover scan fan-out and destination-centric SYN floods only. UDP reflection/amplification and the other four official classes are unimplemented.
+- Implemented paths cover scan fan-out, destination-centric SYN floods, and DGA lexical classification. UDP reflection/amplification, DNS tunnelling, and three official classes are unimplemented.
+- DGA held-out recall is `0.2513` and false-positive rate is `0.0722` on controlled sources; it is not a production verdict or blocking signal.
 - Both detectors' thresholds and `0.75` threshold confidence are heuristic, not production calibrated or probability estimates.
 - The benign and below-threshold fixtures prove only deterministic expected results; no production false-positive rate has been measured.
 - Source-IP entropy describes distribution characteristics and is not proof that sources are spoofed.
@@ -412,8 +460,8 @@ PPT evidence:                 Verified facts recorded; screenshots and performan
 - Native e2e fixtures are IPv4; IPv6 has unit coverage only.
 - Child stderr is intentionally not public. Trusted diagnostics preserve the failed invariant, but additional private troubleshooting tooling may be needed later.
 - No wall-clock alert latency, throughput, CPU, or memory result exists.
-- No official downloadable SIH26145 dataset was found as of 2026-08-26; every future corpus or scenario needs licence and provenance review.
-- No API/dashboard, genuine ML artifact, offline model inference, screenshot, or final presentation exists yet.
+- No official downloadable SIH26145 dataset was found as of 2026-08-26; the selected Majestic and DGA sources have recorded licences/provenance, and every future corpus still requires review.
+- No API/dashboard, screenshot set, or final presentation exists yet.
 
 ## Milestone 2 Approved Plan Outcome: Streaming SYN-DDoS (`VERIFIED`)
 
@@ -430,7 +478,7 @@ The approved plan remained deliberately limited to SYN flood. All ten items are 
 9. Run the focused and full suites, replay real benign and flood fixtures, validate actual alert JSON, then update only affected README, architecture, feature, traceability, PPT, and progress documentation.
 10. Freeze Milestone 2 immediately after acceptance; UDP reflection/amplification remains deferred unless later schedule review proves it cheap and Tier 1 stays safe.
 
-Milestone 2 is merged and frozen. The Milestone 3 branch/worktree now exists at the user's request, but passive DNS/DGA implementation must not begin until the user explicitly approves it. The next deadline priority is the smallest genuine trained, evaluated, persisted, and locally integrated DNS/DGA ML path; after that, finish the minimal API/dashboard, reproducible demo, measured benchmark, and submission evidence.
+Milestone 2 is merged and frozen. The user approved Milestone 3, and its minimum DNS/DGA path is implemented in the dedicated branch/worktree. After its final gate and review, the next deadline priority is the minimal API/dashboard, reproducible demo, measured benchmark, and submission evidence.
 
 ## Handoff Checklist
 
@@ -438,5 +486,5 @@ Milestone 2 is merged and frozen. The Milestone 3 branch/worktree now exists at 
 2. Read `AGENTS.md`, `docs/problem.md`, this file, and relevant source/tests completely.
 3. Confirm the active Milestone 3 branch/worktree and base commit recorded above, and keep Milestone 2 frozen.
 4. Treat this as a verified snapshot, not a substitute for fresh commands.
-5. Do not implement Milestone 3 until the user explicitly approves it.
+5. Do not broaden Milestone 3 beyond the approved minimum DGA path or begin another milestone in this worktree.
 6. Never claim a class, model, dashboard, metric, screenshot, or benchmark without actual current evidence.

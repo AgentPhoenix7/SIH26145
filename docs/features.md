@@ -1,10 +1,10 @@
 # Versioned Features
 
-Last verified: **2026-08-28 (UTC)**
+Last verified: **2026-08-29 (UTC)**
 
 ## Scope and Observability
 
-Milestones 1 and 2 implement passive reconnaissance/port-scan and SYN-flood detection. Native Zeek reads a PCAP and emits `tcp_syn_attempt_v1` metadata for originator TCP SYN packets. Both detectors reproduce their features from capture timestamp, Zeek UID, source/destination IP, source/destination port, and transport. Neither requires payloads, decryption, a completed handshake, active probes, or a return path to an observed endpoint.
+Milestones 1 through 3 implement passive reconnaissance/port-scan, SYN-flood, and DNS/DGA detection. Native Zeek emits `tcp_syn_attempt_v1` originator-SYN metadata and request-only `dns_event_v1` metadata. Every feature comes from the validated passive record; no detector requires payload decryption, a completed handshake, active probing, DNS resolution, enrichment, or a return path.
 
 The committed PCAP fixtures are IPv4. Strict event contracts and detector state have focused IPv6 unit coverage, but native IPv6 replay is not yet an end-to-end claim.
 
@@ -102,6 +102,27 @@ confidence = round(0.50 + 0.25 * event_strength + 0.25 * source_strength, 4)
 
 It is also `0.75` at the exact threshold and uses the same severity bands.
 
+## `dns_event_v1` and `dns_features_v1`
+
+One DNS record contains capture timestamp, Zeek UID, client/server endpoints, UDP or TCP transport, a lowercase query name without a terminal dot, and positive 16-bit query type/class codes. The LDH-only boundary rejects non-ASCII names, underscores, empty/overlong labels, names over 253 bytes, unknown fields, and invalid endpoints or timestamps. This intentionally excludes service labels and Unicode presentation names from the MVP.
+
+Training and runtime import the same `extract_dns_features` implementation. Dots are excluded from character summaries, and hashed n-grams never cross label boundaries.
+
+| Ordered summary feature | Definition |
+| --- | --- |
+| Domain length | Characters excluding dots |
+| Label count | Number of dot-separated labels |
+| Longest / mean label length | Maximum label length and domain length divided by label count |
+| Digit / hyphen / vowel ratio | Matching characters divided by domain length |
+| Unique-character ratio | Distinct characters divided by domain length |
+| Character entropy | Shannon entropy over domain characters excluding dots |
+| Unique-bigram ratio | Distinct adjacent label-internal bigrams divided by total bigrams |
+| Longest consonant / digit run | Longest label-internal consecutive run of each type |
+
+The model vector appends 128 deterministic BLAKE2b-hashed character 2-gram and 3-gram frequency buckets, producing 140 ordered finite values. Bucket counts are normalized by total label-internal n-grams. Alerts retain the 12 readable summaries and the contract recomputes them from the recorded query; the sparse buckets are not emitted.
+
+`dga_logreg_v1` is a `StandardScaler` plus class-balanced Logistic Regression artifact loaded once before Zeek starts. A probability at or above `0.5` emits `DGA`; confidence equals that probability. Severity remains `MEDIUM` below `0.85`, `HIGH` below `0.95`, and `CRITICAL` otherwise. The detector is stateless and bounded by the strict 253-byte input name and fixed 140-value vector.
+
 ## Version and Parity Status
 
-The runtime event contract remains `tcp_syn_attempt_v1`; the common alert contract remains `alert_v1`. Detector identities are `port_scan_window` and `syn_flood_window`, both version `1.0.0`. No training dataset or model consumes these heuristic features. DNS/DGA ML must define a separate shared feature version that local passive inference can reproduce exactly.
+Runtime event contracts are `tcp_syn_attempt_v1` and `dns_event_v1`; the common output remains `alert_v1`. Detector identities are `port_scan_window`, `syn_flood_window`, and `dga_logistic_regression`, all version `1.0.0`. The SYN detectors remain heuristic and frozen. Only DGA uses genuine ML, with model `dga_logreg_v1` and shared feature schema `dns_features_v1`.

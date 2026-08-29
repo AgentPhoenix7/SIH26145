@@ -1,31 +1,32 @@
-# Streaming SYN Detection Architecture
+# Streaming SYN and DNS/DGA Detection Architecture
 
-Status: **implemented and verified for Milestone 1 port-scan and Milestone 2 SYN-flood replay**
+Status: **implemented for Milestone 1 port scan, Milestone 2 SYN flood, and Milestone 3 DNS/DGA replay**
 
 Designed: **2026-08-26**
 
-Last verified: **2026-08-28**
+Last verified: **2026-08-29**
 
 ## Objective
 
-Milestones 1 and 2 share one complete passive streaming path:
+Milestones 1 through 3 share one passive streaming path:
 
 ```text
 deterministic PCAP replay
-  -> native Zeek packet events
+  -> native Zeek SYN and DNS request events
   -> versioned JSON Lines
   -> Python validation
   -> synchronous detector pipeline
      -> bounded per-source scan window
      -> bounded per-target SYN-flood window
-  -> validated PORT_SCAN / SYN_FLOOD alerts
+     -> stateless local DGA Logistic Regression
+  -> validated PORT_SCAN / SYN_FLOOD / DGA alerts
 ```
 
-It demonstrates passive ingest, incremental processing, bounded state, and evidence-bearing standardized alerts for port scans and SYN floods. UDP reflection/amplification, the other four named classes, ML inference, API, and dashboard do not exist.
+It demonstrates passive ingest, incremental processing, bounded state or bounded per-record ML work, and standardized evidence for port scans, SYN floods, and DGA-like DNS queries. UDP reflection/amplification, DNS tunnelling, the remaining three named classes, API, and dashboard do not exist.
 
 ## Decision and Alternatives
 
-Use the package-managed native Zeek 8.2.2 installation. A small Zeek policy emits originator TCP SYN attempts to standard output as JSON Lines. A Python runner starts Zeek without a shell, validates each line, and passes accepted events to one synchronous pipeline containing the frozen scan detector and the destination-centric SYN-flood detector.
+Use the package-managed native Zeek 8.2.2 installation. One small Zeek policy emits originator TCP SYN attempts and DNS requests to standard output as JSON Lines. A Python runner starts Zeek without a shell, validates each line, and passes accepted events to one synchronous pipeline. SYN records retain the frozen scan/flood order; DNS records route only to a preloaded local DGA detector.
 
 This boundary was selected because it is immediate and testable. Two alternatives were rejected for Milestone 1:
 
@@ -50,14 +51,16 @@ The verified implementation preserves the six clarifications approved before cod
 | Component | Owns | Must not own |
 | --- | --- | --- |
 | Replay runner | Zeek process lifecycle, pipe draining, stream order, EOS consistency, and run success/failure | Packet parsing, event-time state, or detection heuristics |
-| Zeek policy | Passive packet parsing and `tcp_syn_attempt_v1` emission | Alerting, thresholds, long-lived aggregation, or network actions |
+| Zeek policy | Passive packet parsing and `tcp_syn_attempt_v1` / request-only `dns_event_v1` emission | Alerting, thresholds, long-lived aggregation, lookups, or network actions |
 | Input schema | Trust-boundary validation and schema-version discrimination | Detection policy |
 | Detector pipeline | Synchronous fan-out of one validated event and deterministic zero/one/two-alert batching before the next record | Detector policy, state, or process lifecycle |
 | Scan detector | Event-time watermark, deduplication, expiry, bounded rolling state, thresholding, cooldown, and alert evidence | Process management or packet parsing |
 | SYN-flood detector | Destination-keyed event-time state, deduplication, entropy, rate/source thresholds, cooldown, and alert evidence | Process management, packet parsing, or spoofing claims |
+| DGA model loader | Packaged metadata/artifact integrity, compatibility, sklearn pipeline shape, and local probability inference | Network retrieval, observed-domain lookup, or detection policy |
+| DGA detector | Stateless threshold decision, severity, and measured lexical/model evidence for one DNS event | DNS parsing, rolling state, enrichment, or network access |
 | Alert schema | Common output validation and detector-specific typed evidence | Detector state |
 
-The pipeline is one concrete in-process composition, not a plugin system or service boundary. The replay runner accepts either the historical scan-only detector used by frozen regression tests or the two-detector pipeline used by the public CLI.
+The pipeline is one concrete in-process composition, not a plugin system or service boundary. The replay runner accepts the historical scan-only detector for frozen regression tests or the three-detector pipeline used by the public CLI.
 
 ## Milestone 2 SYN-Flood Extension
 
@@ -86,12 +89,12 @@ Offline Milestone 2 fixtures use RFC 5737 IPv4 addresses and valid generated Eth
 The runner resolves `zeek` through `PATH` and invokes an argument vector, equivalent to:
 
 ```text
-zeek -D -b -r <input.pcap> <absolute-path-to-emit-syn-policy>
+zeek -D -b -r <input.pcap> <absolute-path-to-combined-policy>
 ```
 
 The runner never constructs a shell command. The PCAP path is data, not executable text. Zeek runs in a newly created temporary working directory so any incidental files cannot pollute the repository. Deterministic mode (`-D`) makes identical controlled replays preserve the real Zeek-generated UID and therefore produce reproducible alert JSON. A Zeek UID is still not a durable identity across different captures, Zeek versions, or replay modes. Bare mode (`-b`) avoids loading site policy or default logging that could contaminate the JSONL stdout contract. The controlled fixtures contain valid checksums, so replay does not use `-C` to ignore checksum validation.
 
-The Zeek policy handles `connection_SYN_packet(c, pkt)`. That Zeek event covers both SYN and SYN-ACK packets, so the policy emits only when `pkt$is_orig` is true. It converts Zeek ports to integer counts and writes one compact JSON object per line. It calls `flush_all()` after each line so delivery remains incremental when stdout is a pipe. It performs no aggregation and contacts no endpoint.
+The Zeek policy handles `connection_SYN_packet(c, pkt)` and `dns_request(c, msg, query, qtype, qclass)`. It emits only originator SYNs and request metadata, explicitly enables the DNS analyzer for UDP/TCP port 53, writes one compact JSON object per line, and calls `flush_all()` after each line. It performs no lookup, aggregation, response wait, or network action.
 
 At `zeek_done` priority `-100`, the policy emits and flushes exactly one end-of-stream record. This is an internal stream sentinel, not a detector alert.
 
@@ -133,7 +136,19 @@ Validation is strict: the record must be a JSON object with no unknown fields; s
 }
 ```
 
-`last_event_ts` is required when `emitted_events` is positive and omitted when it is zero. A successful replay requires exactly one sentinel, a zero Zeek exit status, a count equal to the preceding SYN records, a matching last timestamp, and no stdout data after the sentinel. Missing, duplicate, premature, or inconsistent sentinels fail the run.
+`last_event_ts` is required when `emitted_events` is positive and omitted when it is zero. A successful replay requires exactly one sentinel, a zero Zeek exit status, a count equal to all preceding SYN and DNS records, a matching last timestamp, and no stdout data after the sentinel. Missing, duplicate, premature, or inconsistent sentinels fail the run.
+
+### DNS request record
+
+`dns_event_v1` carries the same capture timestamp, Zeek UID, and validated client/server endpoints plus UDP/TCP transport, normalized query name, query type, and query class. Names are lowercase ASCII LDH labels without a terminal dot. Unknown fields, malformed endpoints, non-finite timestamps, invalid codes, underscores, Unicode, and overlong names fail at the input boundary.
+
+## Milestone 3 DGA Model Path
+
+Offline preparation selects 20,000 Majestic domains and 7,723 example domains from eight pinned DGA families. The 27,723-row prepared dataset is ignored; only the 5,825-byte joblib artifact and strict metadata sidecar are packaged. Whole DGA families are held out, benign rows use stable SHA-256 buckets, and train/test domains do not overlap.
+
+Both training and runtime import `dns_features_v1`: 12 explainable lexical summaries followed by 128 normalized hashed character 2-gram/3-gram buckets. The loader verifies artifact schema, model/feature versions, ordered feature names, labels, fixed threshold, byte count, SHA-256, and the fitted `StandardScaler`/`LogisticRegression` shape before Zeek starts. Joblib is used only for this trusted packaged artifact.
+
+Each validated DNS request is independently transformed into one fixed 140-value vector. Probability below `0.5` produces no alert; probability at or above it emits one `DGA` `alert_v1` whose confidence is the model probability and whose typed evidence records the query, query type, threshold, model/feature versions, and recomputed lexical summaries. There is no rolling DNS state, network access, resolver call, remote inference, or Internet requirement.
 
 ## Incremental Process and Failure Semantics
 
@@ -318,7 +333,7 @@ Detector unit tests use constructed validated events and cover:
 
 Runner integration tests use a tiny fake child process to cover incremental line handling, stderr draining, non-zero exit, malformed output, missing or duplicate EOS, count mismatch, timeout, pre-EOS terminate-to-kill grace, and post-EOS immediate kill/reap after deadline exhaustion. They do not need Zeek for every failure branch.
 
-Native-Zeek end-to-end tests replay generated scan, SYN-flood, below-threshold, and benign PCAPs through the real policy and Python runner. Both threshold tests assert that `alert_v1` appears before Python accepts `end_of_stream`; comparison fixtures assert successful completion with no alert. The final proof runs tests, lint, type checks, fixture checks, real replay commands, and strict validation of actual emitted JSON.
+Native-Zeek end-to-end tests replay generated scan, SYN-flood, DNS/DGA, below-threshold, and benign PCAPs through the real policy and Python runner. All three alerting classes assert that `alert_v1` appears before Python accepts `end_of_stream`; comparison fixtures assert successful completion with no alert. The final proof runs tests, lint, type checks, all fixture checks, real replay commands, artifact integrity validation, and strict validation of actual emitted JSON.
 
 ## Acceptance and Known Limitations
 
@@ -326,7 +341,8 @@ Milestones 1 and 2 are complete only while their acceptance checkboxes in `PROGR
 
 Known limitations of this slice are explicit:
 
-- It detects scan fan-out and destination-centric SYN floods. UDP reflection/amplification and the other four official classes are not implemented.
+- It detects scan fan-out, destination-centric SYN floods, and DGA-like lexical DNS names. UDP reflection/amplification, DNS tunnelling, and three official classes are not implemented.
+- Held-out DGA recall is `0.2513` and false-positive rate is `0.0722` on controlled sources; the model is not a production verdict.
 - The confidence score is heuristic and thresholds are not calibrated against production traffic.
 - Strict timestamp ordering rejects merged or malformed captures with time regressions instead of reordering them.
 - Failing on state pressure preserves bounded memory and result integrity but stops the current prototype run; a measured live deployment will need a bounded degradation policy and health telemetry.

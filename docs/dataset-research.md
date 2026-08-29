@@ -133,12 +133,22 @@ The following sources were verified before any corpus was imported:
 
 The Majestic page's licence statement was observed at lines surrounding its CSV download link, and the DGA revision was resolved with `git ls-remote` before download. The model will use only normalized query-name features that the passive `dns_event_v1` runtime can reproduce. Family-disjoint DGA evaluation and stable hash-split unique benign domains prevent direct row leakage; they do not prove generalization to every unseen DGA or production DNS population.
 
+### Imported Snapshot and Selection Evidence
+
+After the provenance gate, the sources were acquired only for offline training under ignored `data/dns/`:
+
+| Artifact | Current recorded evidence |
+| --- | --- |
+| Majestic snapshot | 80,119,152 bytes; SHA-256 `210cfa378d1c6b03338ff6950b3ab0fa20a6cd52c76b5a84f467207281822ba1`; 20,000 selected unique valid domains |
+| DGA checkout | Detached revision `0faef452d267a62a94124ef2806bc4a72e0913bd`; families `banjori`, `chinad`, `fobber`, `kraken_v1`, `simda`, `tempedreve`, `tinba`, and `tufik`; 7,723 selected domains |
+| Prepared dataset | 27,723 rows; SHA-256 `4001f5a52bc01fee60157d55531d6a1731d72804f103c00b17ead70efe64a582`; zero discarded duplicates and zero invalid selected rows |
+
+The full CSV, checkout, generated lists, and prepared training CSV remain ignored and are not redistributed. The committed model metadata preserves source URLs, licences, revision, selected file hashes/counts, and dataset hash. The synthetic replay query `x9q7z8v6k5j4m3n2.example` is hand-authored under the reserved `.example` TLD and was confirmed absent from the prepared training CSV.
+
 ## Remaining Research
 
 - Check the licences and safe local execution requirements of the exact traffic
   generators selected for each scenario.
-- Decide whether encrypted-session coverage can be demonstrated honestly with
-  lab-generated TLS metadata before feature freeze.
 - Re-check the official SIH26145 page for a corrected resource link before the
   August 30 feature freeze.
 
@@ -148,5 +158,4 @@ The Majestic page's licence statement was observed at lines surrounding its CSV 
   inspected on 2026-08-26.
 - The unrelated SIH-hosted PDF was downloaded only to `/tmp` for metadata/text
   inspection; it was not added to the repository.
-- No attack generator was run, no traffic was sent, and no dataset was imported
-  during this research phase.
+- No attack generator was run and no traffic was sent. Corpus acquisition occurred only after this documented provenance gate; the ignored source files were used for offline preparation and training, not runtime inference.
