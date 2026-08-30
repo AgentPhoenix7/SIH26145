@@ -24,6 +24,7 @@ from tools.run_benchmark import (
     UnvalidatedPcapError,
     _EmissionClock,
     _make_emit_alert,
+    _run_worker,
     _validate_pcap_matches_generated_fixture,
     _verify_replay_matches_manifest,
     percentile,
@@ -115,6 +116,29 @@ def test_timing_pipeline_enforces_a_hard_event_cap_regardless_of_manifest_trust(
 
     # The rejected event must not have been counted before the check tripped.
     assert len(samples) == 2
+
+
+def test_run_worker_rejects_an_oversized_manifest_before_reading_it(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A direct --worker-manifest invocation trusts its manifest without
+    re-deriving it from the generator (see the module docstring), so an
+    oversized manifest file must be rejected by its size alone, before
+    read_text()/json.loads() ever materializes its content -- proven here by
+    writing content that is not valid JSON: if the size bound were not
+    checked first, this would fail with a JSONDecodeError instead of the
+    named diagnostic below."""
+
+    monkeypatch.setattr(run_benchmark_module, "_MAX_WORKER_MANIFEST_BYTES", 10)
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text("not valid json and over the limit")
+
+    exit_code = _run_worker(tmp_path / "unused.pcap", manifest_path)
+
+    assert exit_code == 1
+    assert "worker_manifest_error: manifest_too_large" in capsys.readouterr().err
 
 
 def test_emit_alert_measures_from_process_start_through_actual_serialization() -> None:

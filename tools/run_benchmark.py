@@ -191,6 +191,16 @@ def _validate_pcap_matches_generated_fixture(pcap_path: Path) -> bytes:
 # still bounded here, independent of manifest trust.
 _MAX_MEASURED_EVENTS = 100_000
 
+# The real manifest run_benchmark() writes for its own worker re-invocation is
+# ~16 KiB for the committed benchmark fixture. This bound is generous headroom
+# above that, not a tuned production limit: its purpose is to stop a direct
+# ``--worker-manifest`` invocation from reading and json.loads()-ing an
+# arbitrarily large caller-supplied file into memory before _MAX_MEASURED_EVENTS
+# above ever gets a chance to bound anything -- the same "still bounded here,
+# independent of manifest trust" guarantee the event cap gives replay accounting,
+# applied to the manifest read itself.
+_MAX_WORKER_MANIFEST_BYTES = 1_048_576
+
 
 @dataclass(slots=True)
 class EventSample:
@@ -631,9 +641,20 @@ def _run_worker(pcap_path: Path, manifest_path: Path) -> int:
     ``_MAX_MEASURED_EVENTS`` cap regardless of that trust, so a direct
     invocation of this internal flag with an arbitrarily large pcap and an
     unvalidated but matching manifest cannot grow this process's bookkeeping
-    lists without bound.
+    lists without bound. The manifest file itself is size-bounded before it
+    is read or parsed, for the same reason: an oversized ``--worker-manifest``
+    argument must not be able to exhaust memory in ``read_text``/``json.loads``
+    before that per-event cap ever gets a chance to run.
     """
 
+    manifest_size = manifest_path.stat().st_size
+    if manifest_size > _MAX_WORKER_MANIFEST_BYTES:
+        print(
+            "worker_manifest_error: manifest_too_large: "
+            f"{manifest_size} bytes exceeds {_MAX_WORKER_MANIFEST_BYTES} byte limit",
+            file=sys.stderr,
+        )
+        return 1
     manifest = json.loads(manifest_path.read_text())
     try:
         report = _measure_replay(pcap_path, manifest)
