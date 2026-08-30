@@ -54,14 +54,16 @@ Both are deterministic controlled examples, not estimates of production true-pos
 
 - 20,000 background TCP SYN packets across 400 source and 200 destination addresses (one fixed destination port), constructed so no source exceeds 15 attempts/ports/hosts and no destination exceeds 100 events/20 sources — i.e. deliberately below every configured `PORT_SCAN`/`SYN_FLOOD` threshold;
 - 199 distinct benign DNS queries;
-- one exact copy of the verified Milestone 1 `vertical_at_threshold` port-scan pattern (20 attempts, 15 ports, 1 source);
-- one exact copy of the verified Milestone 2 `syn_flood_at_threshold` pattern (100 events, 20 sources, 1 target); and
-- one exact copy of the verified Milestone 3 benign/DGA DNS pair.
+- 10 independent copies of the verified Milestone 1 `vertical_at_threshold` port-scan pattern (20 attempts, 15 unique ports each — the exact Milestone 1 threshold shape), each from its own unused source address so every incident fires its own alert without relying on cooldown expiry;
+- 10 independent copies of the verified Milestone 2 `syn_flood_at_threshold` pattern (100 events, 20 unique sources each), each against its own unused target address; and
+- one benign control query plus the verified Milestone 3 DGA domain and further deterministic high-entropy candidate domains, kept only when the actual packaged `dga_logreg_v1` model scores them above its own decision threshold (31 qualified in the current fixture) — so every embedded "DGA" packet is a genuine, model-verified trigger, not an assumed one.
+
+Using several independent alert-triggering incidents per class (51 total: 10 `PORT_SCAN` + 10 `SYN_FLOOD` + 31 `DGA`), rather than one alert per class, is what makes the alert-latency P95/P99 figures below more than an interpolation over a handful of points — see Scope and Limitations for how much confidence that sample size still supports.
 
 `tools/run_benchmark.py` replays this PCAP once through the unmodified `sih26145.runtime.build_detection_pipeline` output via the existing `sih26145.replay.run_replay`/`run_command` path. It measures, without touching any detector, contract, or replay-runner code:
 
 - **event processing latency**: wall-clock time for `DetectionPipeline.process` to return for one validated event (a `TimingPipeline` subclass of the frozen `DetectionPipeline` timing each call; subclassing, not wrapping, is required because `run_command` only routes DNS events to a detector that `isinstance`-checks true as `DetectionPipeline`);
-- **alert latency**: the same measurement, restricted to the events that produced an alert — because the emit callback runs immediately after `process` returns for that event, this is the actual event-to-alert time;
+- **alert latency**: wall-clock time from that same `process` call's start to the moment the alert has actually been serialized and written+flushed by an emit callback that performs the identical work as the real CLI's `sih26145.cli.emit_alert` (JSON serialization, then write and flush — to `os.devnull` instead of the terminal, so the benchmark's own output stays clean). Because `run_command` calls the emit callback immediately after `process` returns for the causing event, and finishes all of one event's emits before reading the next line, this is genuinely the event-acceptance-to-alert-availability interval, not detector time alone;
 - **throughput**: total events processed and PCAP bytes divided by total wall-clock replay time (`events/sec`, `Mbps`); and
 - **CPU/memory**: `resource.getrusage(RUSAGE_SELF)` before/after the run, for this Python process only — it excludes the separate native Zeek child process, whose cost is already reflected in the wall-clock throughput figure.
 
@@ -74,29 +76,29 @@ uv run python tools/run_benchmark.py --pcap tests/fixtures/benchmark/sustained_l
 
 ### Benchmark Results
 
-Three consecutive runs on the recorded hardware (WSL2 Linux 6.18.33.2-microsoft-standard-WSL2 x86-64, 16 logical CPUs, Python `3.13.15`, native Zeek `8.2.2`), each replaying the identical 20,321-event / 1,428,710-byte PCAP and each producing exactly 3 alerts (`PORT_SCAN`, `SYN_FLOOD`, `DGA`):
+Three consecutive runs on the recorded hardware (WSL2 Linux 6.18.33.2-microsoft-standard-WSL2 x86-64, 16 logical CPUs, Python `3.13.15`, native Zeek `8.2.2`), each replaying the identical 21,431-event / 1,507,321-byte PCAP and each producing exactly 51 alerts (10 `PORT_SCAN`, 10 `SYN_FLOOD`, 31 `DGA`):
 
-| Metric | Run 1 | Run 2 | Run 3 |
-| --- | ---: | ---: | ---: |
-| Wall-clock seconds | `1.5279686940002648` | `1.389276164999501` | `1.3819525090002571` |
-| Throughput (events/sec) | `13299.356249766513` | `14627.041413330013` | `14704.557405305322` |
-| Throughput (Mbps) | `7.480310326304381` | `8.227075572122915` | `8.270674951246008` |
-| Event latency P50 (ms) | `0.02022700027737301` | `0.02150999989680713` | `0.020941000002494548` |
-| Event latency P95 (ms) | `0.03764499979297398` | `0.03272499998274725` | `0.03325400030007586` |
-| Event latency P99 (ms) | `0.46988899975985754` | `0.3515155995046368` | `0.35421979973761997` |
-| Alert latency P50 (ms) | `0.4157579996899585` | `0.35051699978794204` | `0.3752349994101678` |
-| Alert latency P95 (ms) | `0.9318422995420406` | `0.8929757994337706` | `0.9213559000272653` |
-| Alert latency P99 (ms) | `0.9777164595288923` | `0.9411943594022887` | `0.9698999800821184` |
-| CPU user seconds | `1.2765019999999998` | `1.1296470000000003` | `1.084359` |
-| CPU system seconds | `0.12413199999999999` | `0.132637` | `0.12412299999999998` |
-| Peak RSS (KiB) | `143556` | `143484` | `143412` |
+| Metric | Run 1 | Run 2 | Run 3 | Per-metric median |
+| --- | ---: | ---: | ---: | ---: |
+| Wall-clock seconds | `1.4972120430002178` | `1.3710026990002007` | `1.262704711999504` | `1.3710026990002007` |
+| Throughput (events/sec) | `14313.937761985315` | `15631.62495276522` | `16972.29747884905` | `15631.62495276522` |
+| Throughput (Mbps) | `8.054014831350274` | `8.795437097821669` | `9.549792509212349` | `8.795437097821669` |
+| Event latency P50 (ms) | `0.021727000785176642` | `0.019453000277280807` | `0.01889000031951582` | `0.019453000277280807` |
+| Event latency P95 (ms) | `0.0348990001839411` | `0.032185999771172646` | `0.029844999971828656` | `0.032185999771172646` |
+| Event latency P99 (ms) | `0.40978139977596767` | `0.3319017000649186` | `0.33041010019587763` | `0.3319017000649186` |
+| Alert latency P50 (ms) | `0.8233239996116026` | `0.627475000328559` | `0.6756940001650946` | `0.6756940001650946` |
+| Alert latency P95 (ms) | `1.018835000195395` | `0.8100005002233956` | `0.8157224997376034` | `0.8157224997376034` |
+| Alert latency P99 (ms) | `1.0478935000719503` | `0.8733835002203705` | `0.8570174995838897` | `0.8733835002203705` |
+| CPU (user + system) seconds | `1.3842870000000005` | `1.2693199999999996` | `1.1575029999999997` | `1.2693199999999996` |
+| Peak RSS (KiB) | `143780` | `143952` | `143768` | `143780` |
 
-Run-to-run variance is consistent with cold-start effects in run 1 (Python/model warm-up dominates the first replay's CPU time and P99 tail); runs 2-3 are the more representative steady-state figures. Sustained throughput on this hardware is approximately **13,300-14,700 events/sec** (**7.5-8.3 Mbps**), with detector-side (non-I/O) per-event processing at sub-millisecond P99 and alert latency (event acceptance to alert availability) under 1 ms at P99. Peak process memory stayed at approximately 140 MiB, dominated by the loaded scikit-learn pipeline and Python/numpy/scikit-learn runtime, not by any unbounded per-event state.
+Each column's median is computed independently per metric (not by picking one "representative" run), so the median column does not correspond to any single run. Sustained throughput on this hardware is approximately **14,300-17,000 events/sec** (**8.1-9.5 Mbps**; median **~15,600 events/sec**, **~8.8 Mbps**), with detector-side (non-I/O) per-event processing under 0.5 ms at P99, and full event-acceptance-to-alert-availability latency (detector work plus actual JSON serialization and write+flush) around 0.7-1.0 ms at P95/P99. Peak process memory stayed at approximately 140 MiB, dominated by the loaded scikit-learn pipeline and Python/numpy/scikit-learn runtime, not by any unbounded per-event state.
 
 ### Scope and Limitations
 
 - This is single-process, single-replay, CPU-only measurement of the existing three detectors against one deterministic capture; it is not a claim about live-capture ingestion, multi-core scaling, or sustained multi-hour operation.
+- Alert-latency percentiles are computed from 51 alert observations per run (10 `PORT_SCAN` + 10 `SYN_FLOOD` + 31 `DGA`). This is the largest sample practical from a fast, fully deterministic offline fixture, and is far more supportive of a P95/P99 claim than a single alert per class, but 51 points is still a small sample for a 99th-percentile estimate — treat the P95/P99 figures as indicative of this fixture's behavior, not as a large-scale statistical characterization of production tail latency.
 - CPU/RSS cover the Python process only; the separate native Zeek child process is unmeasured directly, though its cost is included in wall-clock throughput.
-- "Alert latency" here is processing latency for the causing event, not full request-to-dashboard latency; the API/dashboard poll on a fixed interval and were not included in this measurement.
-- The 20,000-event background load is synthetic and address-space-bounded (RFC 5737 ranges); it demonstrates sustained processing rate, not realistic production traffic mix or volume.
+- Alert latency covers event acceptance through actual JSON serialization and write+flush (mirroring the real CLI's emission code path, aimed at `os.devnull`); it does not cover full request-to-dashboard latency — the API/dashboard poll on a fixed interval and were not included in this measurement.
+- The 20,000-event background load and the DGA candidate domains are synthetic, address-space-bounded (RFC 5737) or PRNG-generated; they demonstrate sustained processing rate and genuine model-triggering behavior, not realistic production traffic mix or volume.
 - Figures are specific to the recorded hardware/software above and will differ elsewhere; rerun the two commands above to reproduce them.

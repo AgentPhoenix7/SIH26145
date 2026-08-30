@@ -12,14 +12,23 @@ The capture mixes:
   meaningful sustained-rate sample;
 - a background of distinct benign DNS queries, to give a meaningful sample
   of stateless DGA-path latency;
-- one exact copy of the Milestone 1 vertical port-scan threshold pattern;
-- one exact copy of the Milestone 2 SYN-flood threshold pattern; and
-- one exact copy of the Milestone 3 benign/DGA DNS pair,
+- ``PORT_SCAN_INCIDENTS`` independent copies of the Milestone 1
+  vertical-threshold pattern (20 attempts, 15 unique ports), each from its
+  own unused source address so every incident triggers its own alert
+  without depending on cooldown expiry;
+- ``SYN_FLOOD_INCIDENTS`` independent copies of the Milestone 2
+  exact-threshold pattern (100 events, 20 unique sources), each against its
+  own unused target address; and
+- the verified Milestone 3 DGA query plus additional deterministic
+  high-entropy candidate domains, each accepted only if the packaged
+  ``dga_logreg_v1`` model actually scores it above its decision threshold,
+  alongside one benign control query,
 
-so that replaying it deterministically reproduces exactly three known
-alerts (PORT_SCAN, SYN_FLOOD, DGA) inside a much larger volume of benign
-traffic, which is what makes both throughput and alert-latency percentiles
-measurable from one capture.
+so that replaying it deterministically reproduces many independent alerts
+per threat class inside a much larger volume of benign traffic. Multiple
+independent alert observations (rather than one alert per class) are what
+make alert-latency percentiles meaningful evidence instead of an
+interpolation over a handful of points.
 """
 
 from __future__ import annotations
@@ -33,6 +42,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from random import Random
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING or __package__:
@@ -56,7 +66,7 @@ else:
         ethernet_ipv4_udp_dns,
     )
 
-GENERATOR_VERSION = "1.0.0"
+GENERATOR_VERSION = "2.0.0"
 BASE_TIMESTAMP = 1_700_000_000.0
 
 LOAD_SYN_EVENTS = 20_000
@@ -66,6 +76,17 @@ LOAD_DESTINATION_PORT = 8080
 LOAD_INTERVAL_SECONDS = 0.001
 
 LOAD_DNS_EVENTS = 199
+
+PORT_SCAN_INCIDENTS = 10
+PORT_SCAN_ATTEMPTS = 20
+PORT_SCAN_UNIQUE_PORTS = 15  # matches the Milestone 1 vertical_at_threshold fixture exactly
+
+SYN_FLOOD_INCIDENTS = 10
+SYN_FLOOD_EVENTS = 100
+SYN_FLOOD_UNIQUE_SOURCES = 20  # matches the Milestone 2 syn_flood_at_threshold fixture exactly
+
+DGA_CANDIDATE_POOL = 30  # generate this many; keep only the ones the model actually scores as DGA
+DGA_CANDIDATE_SEED = 26_145  # reuses the project's fixed split/training seed for determinism
 
 Packet = SynPacket | DnsQueryPacket
 
@@ -126,73 +147,123 @@ def _load_dns_packets(*, start_ts: float) -> tuple[DnsQueryPacket, ...]:
     )
 
 
-def _port_scan_packets(*, start_ts: float) -> tuple[SynPacket, ...]:
-    """Exact copy of the Milestone 1 vertical-threshold pattern (1 alert)."""
+def _port_scan_incident_packets(*, start_ts: float, incident_index: int) -> tuple[SynPacket, ...]:
+    """One exact copy of the Milestone 1 vertical-threshold pattern (1 alert).
+
+    Each incident uses its own source address (``192.0.2.230`` +
+    ``incident_index``, outside the load-block pool ``192.0.2.2``-``.201``
+    and outside every other incident's address), so ``PORT_SCAN_INCIDENTS``
+    independent alerts fire without depending on cooldown expiry between
+    incidents.
+    """
 
     return tuple(
         SynPacket(
             timestamp=start_ts + index * 0.25,
-            source_ip="192.0.2.250",
+            source_ip=f"192.0.2.{230 + incident_index}",
             source_port=41_000 + index,
             destination_ip="198.51.100.250",
-            destination_port=20 + index,
+            destination_port=20 + (index % PORT_SCAN_UNIQUE_PORTS),
             sequence=5_000 + index,
             ip_identification=6_000 + index,
         )
-        for index in range(20)
+        for index in range(PORT_SCAN_ATTEMPTS)
     )
 
 
-def _syn_flood_packets(*, start_ts: float) -> tuple[SynPacket, ...]:
-    """Exact copy of the Milestone 2 exact-threshold pattern (1 alert).
+def _syn_flood_incident_packets(*, start_ts: float, incident_index: int) -> tuple[SynPacket, ...]:
+    """One exact copy of the Milestone 2 exact-threshold pattern (1 alert).
 
-    Uses 20 unique sources outside the load-block address pool
-    (``203.0.113.2``-``203.0.113.201``), so this block cannot share
-    per-source or per-target state with the background load traffic.
+    All incidents reuse the same 20 source addresses (``203.0.113.210``-
+    ``.229``, outside the load-block pool), which is safe because SYN-flood
+    state is keyed by destination endpoint: each incident uses its own
+    target address (``198.51.100.220`` + ``incident_index``, outside the
+    load-block pool ``198.51.100.2``-``.201``), so ``SYN_FLOOD_INCIDENTS``
+    independent alerts fire without any cross-incident state sharing.
     """
 
     return tuple(
         SynPacket(
             timestamp=start_ts + index * 0.05,
-            source_ip=f"203.0.113.{210 + (index % 20)}",
+            source_ip=f"203.0.113.{210 + (index % SYN_FLOOD_UNIQUE_SOURCES)}",
             source_port=42_000 + index,
-            destination_ip="198.51.100.220",
+            destination_ip=f"198.51.100.{220 + incident_index}",
             destination_port=443,
             sequence=7_000 + index,
             ip_identification=8_000 + index,
         )
-        for index in range(100)
+        for index in range(SYN_FLOOD_EVENTS)
     )
 
 
-def _benign_dns_packet(*, ts: float) -> DnsQueryPacket:
+def _generate_dga_candidates(count: int, *, seed: int) -> tuple[str, ...]:
+    """Return deterministic, high-entropy alphanumeric labels under ``.example``.
+
+    Generation is a fixed-seed PRNG, not live randomness, so the fixture
+    stays byte-deterministic across regenerations. Candidates are filtered
+    against the real packaged model below; this only proposes labels.
+    """
+
+    rng = Random(seed)
+    alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
+    candidates = []
+    for _ in range(count):
+        length = rng.randint(12, 20)
+        label = "".join(rng.choice(alphabet) for _ in range(length))
+        candidates.append(f"{label}.example")
+    return tuple(candidates)
+
+
+def _benign_dns_packet(*, ts: float, port_offset: int = 0) -> DnsQueryPacket:
     return DnsQueryPacket(
         timestamp=ts,
         source_ip="192.0.2.10",
-        source_port=53_000,
+        source_port=53_000 + port_offset,
         destination_ip="198.51.100.53",
         destination_port=53,
-        transaction_id=0x2614,
+        transaction_id=0x2614 + port_offset,
         query_name="example.com",
         query_type=1,
         query_class=1,
-        ip_identification=2_000,
+        ip_identification=2_000 + port_offset,
     )
 
 
-def _dga_dns_packet(*, ts: float) -> DnsQueryPacket:
+def _dga_dns_packet(*, ts: float, query_name: str, port_offset: int) -> DnsQueryPacket:
     return DnsQueryPacket(
         timestamp=ts,
         source_ip="192.0.2.10",
-        source_port=53_001,
+        source_port=53_001 + port_offset,
         destination_ip="198.51.100.53",
         destination_port=53,
-        transaction_id=0x2615,
-        query_name="x9q7z8v6k5j4m3n2.example",
+        transaction_id=0x2615 + port_offset,
+        query_name=query_name,
         query_type=1,
         query_class=1,
-        ip_identification=2_001,
+        ip_identification=2_001 + port_offset,
     )
+
+
+def _model_verified_dga_domains() -> tuple[str, ...]:
+    """Return the verified Milestone 3 DGA domain plus model-verified extras.
+
+    Candidates are generated deterministically and kept only if the actual
+    packaged ``dga_logreg_v1`` model scores them above its own decision
+    threshold, so every embedded "DGA" packet is a genuine, verified
+    trigger of the real detector rather than an assumed one.
+    """
+
+    if TYPE_CHECKING or __package__:
+        from tools.generate_milestone3_fixtures import _model_facts
+    else:
+        from generate_milestone3_fixtures import _model_facts  # type: ignore[no-redef]
+
+    model, _artifact_sha256 = _model_facts()
+    verified = ["x9q7z8v6k5j4m3n2.example"]  # the already-verified Milestone 3 fixture domain
+    for candidate in _generate_dga_candidates(DGA_CANDIDATE_POOL, seed=DGA_CANDIDATE_SEED):
+        if model.predict_probability(candidate) >= 0.5:
+            verified.append(candidate)
+    return tuple(verified)
 
 
 def build_packets() -> tuple[Packet, ...]:
@@ -204,21 +275,35 @@ def build_packets() -> tuple[Packet, ...]:
     load_dns = _load_dns_packets(start_ts=load_syn_end + 1.0)
     load_dns_end = load_dns[-1].timestamp if load_dns else load_syn_end
 
-    port_scan_start = load_dns_end + 30.0
-    port_scan = _port_scan_packets(start_ts=port_scan_start)
-    port_scan_end = port_scan[-1].timestamp
+    port_scan_packets: list[SynPacket] = []
+    incident_start = load_dns_end + 30.0
+    for incident_index in range(PORT_SCAN_INCIDENTS):
+        incident = _port_scan_incident_packets(
+            start_ts=incident_start, incident_index=incident_index
+        )
+        port_scan_packets.extend(incident)
+        incident_start = incident[-1].timestamp + 6.0
+    port_scan_end = port_scan_packets[-1].timestamp
 
-    syn_flood_start = port_scan_end + 30.0
-    syn_flood = _syn_flood_packets(start_ts=syn_flood_start)
-    syn_flood_end = syn_flood[-1].timestamp
+    syn_flood_packets: list[SynPacket] = []
+    incident_start = port_scan_end + 30.0
+    for incident_index in range(SYN_FLOOD_INCIDENTS):
+        incident = _syn_flood_incident_packets(
+            start_ts=incident_start, incident_index=incident_index
+        )
+        syn_flood_packets.extend(incident)
+        incident_start = incident[-1].timestamp + 6.0
+    syn_flood_end = syn_flood_packets[-1].timestamp
 
-    dns_pair_start = syn_flood_end + 5.0
-    dns_pair: tuple[DnsQueryPacket, ...] = (
-        _benign_dns_packet(ts=dns_pair_start),
-        _dga_dns_packet(ts=dns_pair_start + 0.1),
-    )
+    dns_alert_packets: list[DnsQueryPacket] = [_benign_dns_packet(ts=syn_flood_end + 5.0)]
+    dga_domains = _model_verified_dga_domains()
+    for offset, domain in enumerate(dga_domains, start=1):
+        previous_ts = dns_alert_packets[-1].timestamp
+        dns_alert_packets.append(
+            _dga_dns_packet(ts=previous_ts + 0.1, query_name=domain, port_offset=offset)
+        )
 
-    return (*load_syn, *load_dns, *port_scan, *syn_flood, *dns_pair)
+    return (*load_syn, *load_dns, *port_scan_packets, *syn_flood_packets, *dns_alert_packets)
 
 
 def _frame(packet: Packet) -> bytes:
@@ -264,8 +349,22 @@ def _counts(packets: Sequence[Packet]) -> _Counts:
     return _Counts(syn_events=syn_events, dns_events=dns_events)
 
 
+def _dga_domain_names(packets: Sequence[Packet]) -> tuple[str, ...]:
+    """Return every embedded DGA-candidate query name (excludes background/benign)."""
+
+    return tuple(
+        packet.query_name
+        for packet in packets
+        if isinstance(packet, DnsQueryPacket)
+        and packet.query_name != "example.com"
+        and not packet.query_name.startswith("benign-host-")
+    )
+
+
 def _manifest(packets: Sequence[Packet], capture: bytes) -> bytes:
     counts = _counts(packets)
+    dga_domains = _dga_domain_names(packets)
+    expected_alert_count = PORT_SCAN_INCIDENTS + SYN_FLOOD_INCIDENTS + len(dga_domains)
     source_ips = sorted({packet.source_ip for packet in packets}, key=_ip_sort_key)
     destination_ips = sorted({packet.destination_ip for packet in packets}, key=_ip_sort_key)
     destination_ports = sorted({packet.destination_port for packet in packets})
@@ -284,11 +383,20 @@ def _manifest(packets: Sequence[Packet], capture: bytes) -> bytes:
             "load_syn_source_pool": LOAD_SOURCE_POOL,
             "load_syn_target_pool": LOAD_TARGET_POOL,
             "load_dns_events": LOAD_DNS_EVENTS,
-            "embedded_port_scan_attempts": 20,
-            "embedded_syn_flood_events": 100,
-            "embedded_dns_pair_events": 2,
+            "port_scan_incidents": PORT_SCAN_INCIDENTS,
+            "port_scan_attempts_per_incident": PORT_SCAN_ATTEMPTS,
+            "syn_flood_incidents": SYN_FLOOD_INCIDENTS,
+            "syn_flood_events_per_incident": SYN_FLOOD_EVENTS,
+            "dga_candidate_pool_size": DGA_CANDIDATE_POOL,
+            "dga_model_verified_domains": len(dga_domains),
+            "embedded_benign_dns_control_events": 1,
         },
-        "expected_alert_count": 3,
+        "expected_alert_count": expected_alert_count,
+        "expected_alert_count_by_class": {
+            "PORT_SCAN": PORT_SCAN_INCIDENTS,
+            "SYN_FLOOD": SYN_FLOOD_INCIDENTS,
+            "DGA": len(dga_domains),
+        },
         "expected_threat_classes": ["PORT_SCAN", "SYN_FLOOD", "DGA"],
         "expected_processed_events": counts.syn_events + counts.dns_events,
         "packet_count_by_type": {

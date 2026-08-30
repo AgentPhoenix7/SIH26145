@@ -1,5 +1,5 @@
 {
-  "capture_sha256": "9cabaa8fd75f924186409f3428a8fe7994d8910d41678d4ad1f85d454b24647e",
+  "capture_sha256": "8a4c7e3cba34fd854eaa6e258677ffd9b986551e7189e04bf78f49f57530ac89",
   "endpoints": {
     "destination_ips": [
       "198.51.100.2",
@@ -203,6 +203,15 @@
       "198.51.100.200",
       "198.51.100.201",
       "198.51.100.220",
+      "198.51.100.221",
+      "198.51.100.222",
+      "198.51.100.223",
+      "198.51.100.224",
+      "198.51.100.225",
+      "198.51.100.226",
+      "198.51.100.227",
+      "198.51.100.228",
+      "198.51.100.229",
       "198.51.100.250"
     ],
     "destination_ports": [
@@ -221,11 +230,6 @@
       32,
       33,
       34,
-      35,
-      36,
-      37,
-      38,
-      39,
       53,
       443,
       8080
@@ -431,7 +435,16 @@
       "192.0.2.199",
       "192.0.2.200",
       "192.0.2.201",
-      "192.0.2.250",
+      "192.0.2.230",
+      "192.0.2.231",
+      "192.0.2.232",
+      "192.0.2.233",
+      "192.0.2.234",
+      "192.0.2.235",
+      "192.0.2.236",
+      "192.0.2.237",
+      "192.0.2.238",
+      "192.0.2.239",
       "203.0.113.2",
       "203.0.113.3",
       "203.0.113.4",
@@ -654,29 +667,38 @@
       "203.0.113.229"
     ]
   },
-  "expected_alert_count": 3,
-  "expected_processed_events": 20321,
+  "expected_alert_count": 51,
+  "expected_alert_count_by_class": {
+    "DGA": 31,
+    "PORT_SCAN": 10,
+    "SYN_FLOOD": 10
+  },
+  "expected_processed_events": 21431,
   "expected_threat_classes": [
     "PORT_SCAN",
     "SYN_FLOOD",
     "DGA"
   ],
   "generator": "tools/generate_benchmark_fixture.py",
-  "generator_version": "1.0.0",
+  "generator_version": "2.0.0",
   "label": "MILESTONE5_SUSTAINED_LOAD",
-  "packet_count": 20321,
+  "packet_count": 21431,
   "packet_count_by_type": {
-    "dns_query": 201,
-    "tcp_syn": 20120
+    "dns_query": 231,
+    "tcp_syn": 21200
   },
   "parameters": {
-    "embedded_dns_pair_events": 2,
-    "embedded_port_scan_attempts": 20,
-    "embedded_syn_flood_events": 100,
+    "dga_candidate_pool_size": 30,
+    "dga_model_verified_domains": 31,
+    "embedded_benign_dns_control_events": 1,
     "load_dns_events": 199,
     "load_syn_events": 20000,
     "load_syn_source_pool": 400,
-    "load_syn_target_pool": 200
+    "load_syn_target_pool": 200,
+    "port_scan_attempts_per_incident": 20,
+    "port_scan_incidents": 10,
+    "syn_flood_events_per_incident": 100,
+    "syn_flood_incidents": 10
   },
   "provenance": {
     "address_standards": [
@@ -692,7 +714,7 @@
   "scenario_id": "sustained_load",
   "schema_version": "fixture_manifest_v1",
   "timestamp_range": {
-    "end": "2023-11-14T22:14:55.997000Z",
+    "end": "2023-11-14T22:18:14.296998Z",
     "start": "2023-11-14T22:13:20.000000Z"
   }
 }

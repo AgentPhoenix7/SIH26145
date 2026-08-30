@@ -8,7 +8,12 @@ import sys
 from pathlib import Path
 
 from tests.unit.test_fixture_generator import parse_packets
-from tools.generate_benchmark_fixture import check_all, generate_all
+from tools.generate_benchmark_fixture import (
+    PORT_SCAN_INCIDENTS,
+    SYN_FLOOD_INCIDENTS,
+    check_all,
+    generate_all,
+)
 
 
 def test_benchmark_fixture_generation_is_byte_deterministic(tmp_path: Path) -> None:
@@ -31,7 +36,14 @@ def test_benchmark_manifest_matches_capture(tmp_path: Path) -> None:
     assert manifest["capture_sha256"] == hashlib.sha256(capture.read_bytes()).hexdigest()
     assert manifest["packet_count"] == len(packets)
     assert manifest["expected_processed_events"] == len(packets)
-    assert manifest["expected_alert_count"] == 3
+    by_class = manifest["expected_alert_count_by_class"]
+    assert by_class["PORT_SCAN"] == PORT_SCAN_INCIDENTS
+    assert by_class["SYN_FLOOD"] == SYN_FLOOD_INCIDENTS
+    assert by_class["DGA"] >= 1  # at least the already-verified Milestone 3 domain
+    assert manifest["expected_alert_count"] == sum(by_class.values())
+    # Alert-latency percentiles need more than a handful of independent alerts per class.
+    assert PORT_SCAN_INCIDENTS >= 10
+    assert SYN_FLOOD_INCIDENTS >= 10
     assert set(manifest["expected_threat_classes"]) == {"PORT_SCAN", "SYN_FLOOD", "DGA"}
     assert manifest["provenance"] == {
         "address_standards": ["RFC 5737"],

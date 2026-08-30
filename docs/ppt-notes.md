@@ -115,18 +115,18 @@ The controlled `example.com` fixture received probability `0.0018385042677530868
 
 ## Actual End-to-End Benchmark Evidence
 
-Deterministic sustained-load replay (`tests/fixtures/benchmark/sustained_load.pcap`: 20,321 events, 1,428,710 bytes, exactly 3 alerts) through the unmodified `DetectionPipeline`, measured on WSL2 Linux, 16 logical CPUs, Python `3.13.15`, Zeek `8.2.2` (median of 3 runs; full per-run table in `docs/evaluation.md`):
+Deterministic sustained-load replay (`tests/fixtures/benchmark/sustained_load.pcap`: 21,431 events, 1,507,321 bytes, exactly 51 alerts — 10 `PORT_SCAN` + 10 `SYN_FLOOD` + 31 model-verified `DGA`) through the unmodified `DetectionPipeline`, measured on WSL2 Linux, 16 logical CPUs, Python `3.13.15`, Zeek `8.2.2` (per-metric median of 3 runs, each computed independently — not one "representative" run; full per-run table in `docs/evaluation.md`):
 
 | Metric | Measured value |
 | --- | ---: |
-| Sustained throughput | `~14,600` events/sec |
-| Sustained throughput | `~8.2` Mbps |
-| Event processing latency P50 / P95 / P99 | `0.021` / `0.033` / `0.354` ms |
-| Alert latency P50 / P95 / P99 | `0.375` / `0.921` / `0.970` ms |
-| CPU (user + system) | `~1.21` s over the whole replay |
-| Peak RSS | `~140` MiB |
+| Sustained throughput | `~15,600` events/sec |
+| Sustained throughput | `~8.8` Mbps |
+| Event processing latency P50 / P95 / P99 | `0.019` / `0.032` / `0.332` ms |
+| Alert latency P50 / P95 / P99 (event acceptance through actual JSON serialization + write/flush) | `0.676` / `0.816` / `0.873` ms |
+| CPU (user + system) | `~1.27` s over the whole replay |
+| Peak RSS | `~144` MiB |
 
-This is single-process, CPU-only, one-replay measurement; it is not a live-capture, multi-core, or production-traffic-mix claim. See `docs/evaluation.md` for the exact per-run table and scope limitations.
+This is single-process, CPU-only, one-replay measurement over 51 alert observations; it is not a live-capture, multi-core, production-traffic-mix, or large-scale tail-latency claim. See `docs/evaluation.md` for the exact per-run table and scope limitations.
 
 ## Demo Commands
 
@@ -157,7 +157,7 @@ Expected demo behavior: each threshold command prints one compact class-specific
 - Why evidence first: alerts carry actual triggering UIDs, capture-time windows, thresholds, rates, spans, deterministic samples, plus source fan-out or target/source-distribution evidence as appropriate.
 - How state is safe: hard bounds cover input lines, source/target event windows, UID/cooldown state, stderr retention, and process cleanup. State pressure fails with a named invariant instead of silently discarding evidence.
 - What remains: three untouched classes, UDP reflection/amplification, DNS tunnelling, and the final PPT assembly.
-- How the benchmark stays honest: it reuses the unmodified `DetectionPipeline`/`run_replay` path, times it with a subclassed proxy rather than a separate code path, mixes benign background load with exact copies of the three already-verified alert fixtures, and reports median-of-3-runs with the full per-run table disclosed.
+- How the benchmark stays honest: it reuses the unmodified `DetectionPipeline`/`run_replay` path, times it with a subclassed proxy rather than a separate code path, mixes benign background load with 10+10+31 independent copies of the already-verified Milestone 1/2/3 alert patterns (31 DGA domains are individually model-verified above threshold, not assumed), measures alert latency through real JSON serialization and write+flush rather than detector time alone, reports per-metric medians (not one cherry-picked "representative" run), and discloses that 51 alert samples still bound how much a P95/P99 claim can support.
 
 ## Evidence Still Needed Before Final PPT
 
