@@ -37,15 +37,21 @@ Per-event bookkeeping (processing-duration samples, emitted alerts, alert
 latencies) is kept in plain lists that grow with the input's event count,
 which would be unbounded for an arbitrary ``--pcap``. To keep this bounded
 by a known, fixed size rather than accepting arbitrary large input, the
-supplied PCAP's SHA-256 is validated against its generated manifest
-(``<pcap>.manifest.json``, produced by ``generate_benchmark_fixture.py``)
-before any replay starts.
+supplied PCAP is validated against bytes the deterministic generator
+function itself produces right now -- not a co-located manifest file,
+which would be just as caller-controlled as the PCAP -- and its size is
+checked before any of its bytes are read, so an arbitrarily large capture
+is never loaded into memory here. The completed replay's event count and
+per-class alert counts are then checked against that same generated
+fixture's own recorded expectations, so a fixture that no longer produces
+its expected workload (e.g. because Zeek, a detector default, or the
+packaged DGA model changed) cannot silently yield benchmark figures for a
+different workload than the one being reported.
 """
 
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import platform
@@ -54,11 +60,12 @@ import subprocess
 import sys
 import threading
 import time
+from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import TracebackType
-from typing import Any, TextIO
+from typing import TYPE_CHECKING, Any, TextIO
 
 from sih26145.contracts.alerts import AlertV1
 from sih26145.detection.pipeline import DetectionPipeline
@@ -67,36 +74,60 @@ from sih26145.detection.syn_flood import SynFloodConfig, SynFloodDetector
 from sih26145.replay import ReplayResult, run_replay
 from sih26145.runtime import build_detection_pipeline
 
+if TYPE_CHECKING or __package__:
+    from tools.generate_benchmark_fixture import _artifacts as _benchmark_artifacts
+else:
+    from generate_benchmark_fixture import (  # type: ignore[no-redef]
+        _artifacts as _benchmark_artifacts,
+    )
+
 DEFAULT_PCAP = Path("tests/fixtures/benchmark/sustained_load.pcap")
 
 
 class UnvalidatedPcapError(ValueError):
-    """The supplied PCAP does not match its generated benchmark manifest."""
+    """The supplied PCAP does not match the currently generated benchmark fixture."""
 
 
-def _validate_pcap_against_manifest(pcap_path: Path) -> None:
-    """Reject any PCAP whose bytes do not match its manifest's recorded hash.
+class UnexpectedReplayResultError(ValueError):
+    """The completed replay did not match the generated fixture's own expectations."""
 
-    This tool's per-event bookkeeping grows with the input's event count;
-    restricting input to exactly the validated, generator-produced fixture
-    keeps that growth bounded by a known, fixed size instead of accepting
-    an arbitrary, potentially very large capture.
+
+def _validate_pcap_matches_generated_fixture(pcap_path: Path) -> bytes:
+    """Reject any PCAP that isn't exactly what the generator currently produces.
+
+    Trust is anchored to the deterministic generator function itself, not a
+    co-located manifest file the caller could fabricate to match an
+    arbitrary large capture. The candidate's size is checked with a cheap
+    ``stat`` before any of its bytes are read, and at most ``expected_size
+    + 1`` bytes are ever read, so this cannot be used to load an
+    arbitrarily large file into memory. Returns the raw manifest JSON bytes
+    (already generated as a side effect) for the caller to parse.
     """
 
-    manifest_path = pcap_path.with_suffix(".manifest.json")
+    artifacts = _benchmark_artifacts()
+    expected_bytes = artifacts["sustained_load.pcap"]
+    expected_size = len(expected_bytes)
+
     try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        actual_size = pcap_path.stat().st_size
+    except OSError as exc:
+        raise UnvalidatedPcapError(f"cannot stat {pcap_path}: {exc}") from exc
+    if actual_size != expected_size:
         raise UnvalidatedPcapError(
-            f"missing or unreadable benchmark manifest: {manifest_path}"
-        ) from exc
-    expected_sha256 = manifest.get("capture_sha256")
-    actual_sha256 = hashlib.sha256(pcap_path.read_bytes()).hexdigest()
-    if not isinstance(expected_sha256, str) or expected_sha256 != actual_sha256:
-        raise UnvalidatedPcapError(
-            f"{pcap_path} does not match {manifest_path}'s capture_sha256; "
-            "regenerate it with tools/generate_benchmark_fixture.py"
+            f"{pcap_path} is {actual_size} bytes; tools.generate_benchmark_fixture "
+            f"currently produces exactly {expected_size} bytes. Regenerate it with "
+            "tools/generate_benchmark_fixture.py."
         )
+
+    with pcap_path.open("rb") as handle:
+        actual_bytes = handle.read(expected_size + 1)
+    if actual_bytes != expected_bytes:
+        raise UnvalidatedPcapError(
+            f"{pcap_path} does not match the bytes tools.generate_benchmark_fixture "
+            "currently produces. Regenerate it with tools/generate_benchmark_fixture.py."
+        )
+
+    return artifacts["sustained_load.manifest.json"]
 
 
 @dataclass(slots=True)
@@ -344,10 +375,40 @@ class _Collected:
     alert_latencies_seconds: list[float] = field(default_factory=list)
 
 
+def _verify_replay_matches_manifest(
+    manifest: dict[str, Any],
+    *,
+    result: ReplayResult,
+    alerts: list[AlertV1],
+) -> None:
+    """Fail loudly if the completed replay didn't produce the expected workload.
+
+    A regressed fixture (Zeek output behavior, a detector default, or the
+    packaged DGA model changing without the PCAP bytes changing) could
+    otherwise let this command exit successfully while silently reporting
+    benchmark figures for a different workload than the one being cited.
+    """
+
+    expected_events = manifest["expected_processed_events"]
+    if result.events_processed != expected_events:
+        raise UnexpectedReplayResultError(
+            f"replay processed {result.events_processed} events; "
+            f"the generated fixture's manifest expects {expected_events}"
+        )
+
+    expected_by_class: dict[str, int] = manifest["expected_alert_count_by_class"]
+    actual_by_class = dict(Counter(alert.threat_class for alert in alerts))
+    if actual_by_class != expected_by_class:
+        raise UnexpectedReplayResultError(
+            f"replay produced alerts {actual_by_class}; "
+            f"the generated fixture's manifest expects {expected_by_class}"
+        )
+
+
 def run_benchmark(pcap_path: Path) -> BenchmarkReport:
     """Replay ``pcap_path`` once and return measured throughput/latency/CPU/RSS."""
 
-    _validate_pcap_against_manifest(pcap_path)
+    manifest = json.loads(_validate_pcap_matches_generated_fixture(pcap_path).decode("utf-8"))
 
     detector_pipeline = build_detection_pipeline(
         port_scan=PortScanDetector(config=ScanConfig()),
@@ -377,6 +438,8 @@ def run_benchmark(pcap_path: Path) -> BenchmarkReport:
     event_latency = _latency_stats(event_durations)
     if event_latency is None:
         raise ValueError("replay processed zero events; nothing to measure")
+
+    _verify_replay_matches_manifest(manifest, result=result, alerts=collected.alerts)
 
     return BenchmarkReport(
         pcap_path=str(pcap_path),
@@ -421,6 +484,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     except UnvalidatedPcapError as exc:
         print(f"input_error: {exc}", file=sys.stderr)
         return 2
+    except UnexpectedReplayResultError as exc:
+        print(f"replay_error: {exc}", file=sys.stderr)
+        return 1
     payload = json.dumps(report.as_dict(), indent=2, sort_keys=True)
     if args.output is not None:
         args.output.write_text(payload + "\n")

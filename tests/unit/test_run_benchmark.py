@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import io
 import json
 from pathlib import Path
@@ -13,14 +12,18 @@ from sih26145.detection.pipeline import DetectionPipeline
 from sih26145.detection.port_scan import PortScanDetector, ScanConfig
 from sih26145.detection.syn_flood import SynFloodConfig, SynFloodDetector
 from sih26145.ml.dga_model import DgaModel
+from sih26145.replay import ReplayResult
 from tests.factories import dns, syn
+from tools.generate_benchmark_fixture import _artifacts as _benchmark_artifacts
 from tools.run_benchmark import (
     EventSample,
     TimingPipeline,
+    UnexpectedReplayResultError,
     UnvalidatedPcapError,
     _EmissionClock,
     _make_emit_alert,
-    _validate_pcap_against_manifest,
+    _validate_pcap_matches_generated_fixture,
+    _verify_replay_matches_manifest,
     percentile,
 )
 
@@ -112,38 +115,91 @@ def test_emit_alert_measures_from_process_start_through_actual_serialization() -
     assert alert_latencies[0] >= samples[0].duration_seconds
 
 
-def _write_manifest(manifest_path: Path, *, capture_sha256: str) -> None:
-    manifest_path.write_text(json.dumps({"capture_sha256": capture_sha256}))
-
-
-def test_validate_pcap_against_manifest_accepts_a_matching_capture(tmp_path: Path) -> None:
-    pcap_path = tmp_path / "sustained_load.pcap"
-    pcap_path.write_bytes(b"deterministic content")
-    _write_manifest(
-        pcap_path.with_suffix(".manifest.json"),
-        capture_sha256=hashlib.sha256(pcap_path.read_bytes()).hexdigest(),
-    )
-
-    _validate_pcap_against_manifest(pcap_path)  # must not raise
-
-
-def test_validate_pcap_against_manifest_rejects_a_tampered_or_arbitrary_capture(
+def test_validate_pcap_matches_generated_fixture_accepts_the_real_generated_bytes(
     tmp_path: Path,
 ) -> None:
     pcap_path = tmp_path / "sustained_load.pcap"
-    pcap_path.write_bytes(b"an arbitrary, potentially very large capture")
-    _write_manifest(pcap_path.with_suffix(".manifest.json"), capture_sha256="0" * 64)
+    pcap_path.write_bytes(_benchmark_artifacts()["sustained_load.pcap"])
 
-    with pytest.raises(UnvalidatedPcapError, match="capture_sha256"):
-        _validate_pcap_against_manifest(pcap_path)
+    manifest_bytes = _validate_pcap_matches_generated_fixture(pcap_path)  # must not raise
+
+    assert json.loads(manifest_bytes) == json.loads(
+        _benchmark_artifacts()["sustained_load.manifest.json"]
+    )
 
 
-def test_validate_pcap_against_manifest_rejects_a_missing_manifest(tmp_path: Path) -> None:
-    pcap_path = tmp_path / "no_manifest.pcap"
-    pcap_path.write_bytes(b"anything")
+def test_validate_pcap_matches_generated_fixture_rejects_a_larger_arbitrary_capture(
+    tmp_path: Path,
+) -> None:
+    """A large arbitrary capture (with or without a fabricated sidecar) must be rejected
+    by size alone, before any of its bytes are read."""
 
-    with pytest.raises(UnvalidatedPcapError, match="manifest"):
-        _validate_pcap_against_manifest(pcap_path)
+    expected_size = len(_benchmark_artifacts()["sustained_load.pcap"])
+    pcap_path = tmp_path / "sustained_load.pcap"
+    pcap_path.write_bytes(b"\x00" * (expected_size + 1))
+
+    with pytest.raises(UnvalidatedPcapError, match="bytes"):
+        _validate_pcap_matches_generated_fixture(pcap_path)
+
+
+def test_validate_pcap_matches_generated_fixture_rejects_same_size_wrong_content(
+    tmp_path: Path,
+) -> None:
+    expected_bytes = _benchmark_artifacts()["sustained_load.pcap"]
+    pcap_path = tmp_path / "sustained_load.pcap"
+    # Same length as the real fixture, but not the same bytes.
+    pcap_path.write_bytes(b"\xff" * len(expected_bytes))
+
+    with pytest.raises(UnvalidatedPcapError, match="does not match"):
+        _validate_pcap_matches_generated_fixture(pcap_path)
+
+
+def test_validate_pcap_matches_generated_fixture_rejects_a_missing_file(tmp_path: Path) -> None:
+    with pytest.raises(UnvalidatedPcapError, match="cannot stat"):
+        _validate_pcap_matches_generated_fixture(tmp_path / "does_not_exist.pcap")
+
+
+def _dga_alert() -> AlertV1:
+    alert = DgaDetector(model=DgaModel.load_packaged()).process(
+        dns(ts=1_700_000_000.0, query_name="x9q7z8v6k5j4m3n2.example")
+    )
+    assert alert is not None
+    return alert
+
+
+def test_verify_replay_matches_manifest_accepts_the_expected_workload() -> None:
+    manifest = {"expected_processed_events": 5, "expected_alert_count_by_class": {"DGA": 2}}
+    result = ReplayResult(events_processed=5, alerts_emitted=2, last_event_ts=0.0)
+
+    _verify_replay_matches_manifest(
+        manifest, result=result, alerts=[_dga_alert(), _dga_alert()]
+    )  # must not raise
+
+
+def test_verify_replay_matches_manifest_rejects_a_wrong_event_count() -> None:
+    manifest = {"expected_processed_events": 5, "expected_alert_count_by_class": {}}
+    result = ReplayResult(events_processed=4, alerts_emitted=0, last_event_ts=0.0)
+
+    with pytest.raises(UnexpectedReplayResultError, match="events"):
+        _verify_replay_matches_manifest(manifest, result=result, alerts=[])
+
+
+def test_verify_replay_matches_manifest_rejects_wrong_alert_counts_by_class() -> None:
+    manifest = {"expected_processed_events": 1, "expected_alert_count_by_class": {"DGA": 1}}
+    result = ReplayResult(events_processed=1, alerts_emitted=0, last_event_ts=0.0)
+
+    with pytest.raises(UnexpectedReplayResultError, match="alerts"):
+        _verify_replay_matches_manifest(manifest, result=result, alerts=[])
+
+
+def test_verify_replay_matches_manifest_is_compatible_with_the_real_generated_manifest() -> None:
+    """The real manifest's keys/shape must be exactly what this function expects."""
+
+    manifest = json.loads(_benchmark_artifacts()["sustained_load.manifest.json"])
+    result = ReplayResult(events_processed=0, alerts_emitted=0, last_event_ts=None)
+
+    with pytest.raises(UnexpectedReplayResultError, match="events"):
+        _verify_replay_matches_manifest(manifest, result=result, alerts=[])
 
 
 def test_emit_alert_without_a_preceding_process_call_records_nothing() -> None:
