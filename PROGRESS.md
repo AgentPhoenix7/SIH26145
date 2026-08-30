@@ -18,7 +18,7 @@ Last updated: **2026-08-30 (UTC)**, Milestone 5 implementation slice
 - **Milestone 2 final feature commit:** `7cb1eb513295a844ef8959616631f9f1e8fed531`
 - **Milestone 3 merge commit:** `9fc30e612f4ea5accbd412610b692899b93d4ffc`
 - **Milestone 3 final feature fix:** `d61bec43f6559e6191cb0d64309317844dbcc9a2`
-- **Current milestone:** Milestone 5 — measured end-to-end benchmark (throughput, alert latency, CPU, memory) (**IMPLEMENTED + TESTED**; PR/merge/freeze not yet done).
+- **Current milestone:** Milestone 5 — measured end-to-end benchmark (throughput, alert latency, CPU, memory) (**IMPLEMENTED + TESTED**; PR #5 (`https://github.com/AgentPhoenix7/SIH26145/pull/5`) is open as a draft against `main`; review/merge/freeze not yet done).
 - **Active milestone branch:** `feature/milestone-5-benchmark`
 - **Active milestone worktree:** `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-5-benchmark`
 - **Milestone 4:** minimal local API, bounded alert storage, and dashboard (**MERGED into `main` at `44c51d88da7d9d1abb574da3775e06832cf5846a` and FROZEN**); its branch/worktree were deleted after merge.
@@ -54,11 +54,11 @@ Last updated: **2026-08-30 (UTC)**, Milestone 5 implementation slice
 
 ### Implemented but Not Verified
 
-- None outstanding for Milestone 5; the benchmark tooling, fixture, and measured evidence below are implemented and verified by actual command execution. PR/merge/freeze is the remaining step.
+- None outstanding for Milestone 5; the benchmark tooling, fixture, and measured evidence below are implemented and verified by actual command execution. PR #5 is open as a draft; review/merge/freeze is the remaining step.
 
 ### In Progress
 
-- Milestone 5 (this worktree): implementation, tests, and full verification gate complete. Not yet reviewed, PR'd, merged, or frozen. PR #4 previously merged into `main` at `44c51d88da7d9d1abb574da3775e06832cf5846a` on 2026-08-30T12:31:46Z; Milestone 4 is frozen. `main` also carries one post-merge documentation commit, `7a7e870` (`CLAUDE.md` added as a symlink to `AGENTS.md`).
+- Milestone 5 (this worktree): implementation, tests, and full verification gate complete. PR #5 (`https://github.com/AgentPhoenix7/SIH26145/pull/5`) is open as a draft against `main`; not yet reviewed, merged, or frozen. PR #4 previously merged into `main` at `44c51d88da7d9d1abb574da3775e06832cf5846a` on 2026-08-30T12:31:46Z; Milestone 4 is frozen. `main` also carries one post-merge documentation commit, `7a7e870` (`CLAUDE.md` added as a symlink to `AGENTS.md`).
 
 ### Known Problems
 
@@ -147,8 +147,8 @@ Demonstrated detector coverage spans three of six required classes: reconnaissan
 - Versioned feature semantics: `docs/features.md`
 - Requirements traceability: `docs/requirements-traceability.md`
 - Repository: `/home/agntdrgn/WorkSpace/SIH26145`
-- Current branch: `main`
-- Current worktree: `/home/agntdrgn/WorkSpace/SIH26145` (main worktree; no milestone worktree is active)
+- Current branch: `feature/milestone-5-benchmark`
+- Current worktree: `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-5-benchmark` (active Milestone 5 worktree; PR #5 open as a draft against `main`, not yet merged)
 - Milestone 4 merge commit: `44c51d88da7d9d1abb574da3775e06832cf5846a`
 - Milestone 4 base commit: `7498634bf2e91a9540197166d876c3e381adee40`
 - Main worktree: `/home/agntdrgn/WorkSpace/SIH26145`
