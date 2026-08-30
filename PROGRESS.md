@@ -93,7 +93,7 @@ Last updated: **2026-08-30 (UTC)**, Milestone 5 implementation slice
 
 ### Benchmark State
 
-- Milestone 5 measured end-to-end sustained-replay throughput, alert latency, CPU, and memory: `tools/generate_benchmark_fixture.py` deterministically builds a 21,431-event / 1,507,321-byte PCAP (20,000+ benign background SYN/DNS events below every configured threshold, plus 10 independent copies each of the verified Milestone 1 port-scan and Milestone 2 SYN-flood exact-threshold patterns, plus the verified Milestone 3 DGA domain and further deterministic candidate domains kept only when the actual packaged model scores them above threshold — 31 qualified); `tools/run_benchmark.py` times the unmodified `DetectionPipeline`/`run_replay` path via a `TimingPipeline` subclass, and measures alert latency from event acceptance through actual JSON serialization and write/flush (mirroring `sih26145.cli.emit_alert`), not detector time alone. Three runs on WSL2 Linux (16 logical CPUs, Python `3.13.15`, Zeek `8.2.2`) each produced exactly 51 alerts (10 `PORT_SCAN` + 10 `SYN_FLOOD` + 31 `DGA`) and measured, using per-metric medians computed independently (not one "representative" run): `14,300`-`17,000` events/sec (`8.1`-`9.5` Mbps, median `~15,600`/`~8.8`), event-processing-latency P50/P95/P99 median `0.019`/`0.032`/`0.332` ms, alert-latency P50/P95/P99 median `0.676`/`0.816`/`0.873` ms, median `1.27` s total CPU (user+system), and `~144` MiB peak RSS. Full per-run table, method, and the explicit 51-sample caveat on P95/P99 confidence are in `docs/evaluation.md`. Model-only batch inference measured separately at `2.340909655567489` microseconds/domain (`427184.36297686916` domains/second) and is not pipeline throughput.
+- Milestone 5 measured end-to-end sustained-replay throughput, alert latency, CPU, and memory: `tools/generate_benchmark_fixture.py` deterministically builds a 21,431-event / 1,507,321-byte PCAP (20,000+ benign background SYN/DNS events below every configured threshold, plus 10 independent copies each of the verified Milestone 1 port-scan and Milestone 2 SYN-flood exact-threshold patterns, plus the verified Milestone 3 DGA domain and further deterministic candidate domains kept only when the actual packaged model scores them above threshold — 31 qualified); `tools/run_benchmark.py` times the unmodified `DetectionPipeline`/`run_replay` path via a `TimingPipeline` subclass, and measures alert latency from event acceptance through actual JSON serialization and write/flush (mirroring `sih26145.cli.emit_alert`), not detector time alone. Three runs on WSL2 Linux (16 logical CPUs, Python `3.13.15`, Zeek `8.2.2`) each produced exactly 51 alerts (10 `PORT_SCAN` + 10 `SYN_FLOOD` + 31 `DGA`) and measured, using per-metric medians computed independently (not one "representative" run): `14,100`-`15,800` events/sec (`7.9`-`8.9` Mbps, median `~15,150`/`~8.5`), event-processing-latency P50/P95/P99 median `0.021`/`0.035`/`0.423` ms, alert-latency P50/P95/P99 median `0.786`/`0.946`/`0.961` ms, median `1.32` s total CPU (user+system), and `~138` MiB peak RSS (`141732` KiB). Full per-run table, method, and the explicit 51-sample caveat on P95/P99 confidence are in `docs/evaluation.md`. Model-only batch inference measured separately at `2.340909655567489` microseconds/domain (`427184.36297686916` domains/second) and is not pipeline throughput.
 
 ### SIH Compliance State
 
@@ -119,7 +119,7 @@ Progress status vocabulary is `PLANNED`, `IN PROGRESS`, `IMPLEMENTED`, `TESTED`,
 
 ## Current Phase
 
-**Milestones 1, 2, 3, and 4 are verified, merged, and frozen on `main`. Milestone 4's minimum API/store/dashboard merged via PR #4 at `44c51d8`; its feature branch and worktree were deleted after merge. `main` matches `origin/main`.**
+**Milestones 1, 2, 3, and 4 are verified, merged, and frozen on `main`. Milestone 4's minimum API/store/dashboard merged via PR #4 at `44c51d8`; its feature branch and worktree were deleted after merge. `main` matches `origin/main`. Milestone 5 (end-to-end benchmark; see the Benchmark State section above) is implemented, tested, and gate-verified on `feature/milestone-5-benchmark` (PR #5) but not yet merged into `main`.**
 
 The verified path is:
 
@@ -137,7 +137,7 @@ deterministic PCAP replay
   -> loopback API + same-origin static dashboard
 ```
 
-Demonstrated detector coverage spans three of six required classes: reconnaissance/port scanning, the SYN-flood subset of volumetric/protocol DDoS, and DGA lexical detection. UDP reflection/amplification, C2 beaconing, DNS tunnelling, encrypted-session malware metadata, data exfiltration, and end-to-end benchmarking remain absent.
+Demonstrated detector coverage spans three of six required classes: reconnaissance/port scanning, the SYN-flood subset of volumetric/protocol DDoS, and DGA lexical detection. UDP reflection/amplification, C2 beaconing, DNS tunnelling, encrypted-session malware metadata, and data exfiltration remain absent. End-to-end benchmarking is measured (see the Benchmark State section above and `docs/evaluation.md`) on `feature/milestone-5-benchmark`, not yet merged into `main`.
 
 ## Authoritative Context and Git State
 
@@ -248,9 +248,9 @@ Milestone 4 adds:
 Milestone 5 adds:
 
 - `tools/generate_benchmark_fixture.py`: a deterministic, offline, documentation-address-range PCAP generator producing one sustained-load fixture (20,000 background SYN + 199 background DNS events kept below every configured threshold, plus 10 independent exact-threshold copies each of the verified Milestone 1 port-scan and Milestone 2 SYN-flood patterns, plus the verified Milestone 3 DGA domain and further deterministic candidate domains kept only when the actual packaged `dga_logreg_v1` model scores them above threshold). Not committed (`.gitignore` `*.pcap`); regenerated on demand, with a byte-determinism/`--check`/no-network-import test suite mirroring Milestones 1–3.
-- `tools/run_benchmark.py`: a developer-only measurement harness that replays that fixture through the unmodified `sih26145.runtime.build_detection_pipeline` output via the existing `run_replay`/`run_command` path, using a `TimingPipeline` subclass of the frozen `DetectionPipeline` (subclassing rather than wrapping is required because `run_command` only routes DNS events to a detector that `isinstance`-checks true as `DetectionPipeline`) to record per-event wall-clock processing time, plus an emit callback that performs the real CLI's JSON-serialize-then-write-and-flush emission work (to `os.devnull`) so measured alert latency covers actual event-acceptance-to-alert-availability, not detector time alone, plus `resource.getrusage(RUSAGE_SELF)` CPU/peak-RSS and wall-clock-derived throughput.
+- `tools/run_benchmark.py`: a developer-only measurement harness that replays that fixture through the unmodified `sih26145.runtime.build_detection_pipeline` output via the existing `run_replay`/`run_command` path, using a `TimingPipeline` subclass of the frozen `DetectionPipeline` (subclassing rather than wrapping is required because `run_command` only routes DNS events to a detector that `isinstance`-checks true as `DetectionPipeline`) to record per-event wall-clock processing time, plus an emit callback that performs the real CLI's JSON-serialize-then-write-and-flush emission work into a real OS pipe drained by a background reader thread (`_ConsumedPipe`, exercising the same kernel write/consume path as the real CLI's `sys.stdout` when piped to a consumer, unlike `os.devnull`'s always-instant sink) so measured alert latency covers actual event-acceptance-to-alert-availability, not detector time alone, plus `resource.getrusage(RUSAGE_SELF)` CPU/peak-RSS and wall-clock-derived throughput.
 - No detector, contract, replay-runner, API, or model behavior changed for this milestone.
-- Measured, recorded, real evidence (three runs, per-metric medians; see `docs/evaluation.md`): `14,300`-`17,000` events/sec, `8.1`-`9.5` Mbps, event-processing-latency P50/P95/P99 median `0.019`/`0.032`/`0.332` ms, alert-latency (event acceptance through actual emission) P50/P95/P99 median `0.676`/`0.816`/`0.873` ms over 51 alert samples/run, `~1.27` s median total CPU, `~144` MiB peak RSS.
+- Measured, recorded, real evidence (three runs, per-metric medians; see `docs/evaluation.md`): `14,100`-`15,800` events/sec, `7.9`-`8.9` Mbps, event-processing-latency P50/P95/P99 median `0.021`/`0.035`/`0.423` ms, alert-latency (event acceptance through actual emission into a real, drained OS pipe) P50/P95/P99 median `0.786`/`0.946`/`0.961` ms over 51 alert samples/run, `~1.32` s median total CPU, `~138` MiB peak RSS (`141732` KiB).
 
 ## Milestone 5 Acceptance
 
@@ -331,7 +331,7 @@ UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv run mypy src tests tools
 UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv run python tools/generate_milestone1_fixtures.py --output tests/fixtures/milestone1 --check
 UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv run python tools/generate_milestone2_fixtures.py --output tests/fixtures/milestone2 --check
 UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv run python tools/generate_milestone3_fixtures.py --output tests/fixtures/milestone3 --check
-UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv run python tools/generate_benchmark_fixture.py --output tests/fixtures/benchmark --check
+UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv run python tools/generate_benchmark_fixture.py --output tests/fixtures/benchmark
 UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv run zeek -D -b -r tests/fixtures/benchmark/sustained_load.pcap src/sih26145/zeek/emit_events.zeek
 UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv run sih26145-replay tests/fixtures/benchmark/sustained_load.pcap
 UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv run python tools/run_benchmark.py --pcap tests/fixtures/benchmark/sustained_load.pcap
@@ -561,7 +561,7 @@ ML model trained:             VERIFIED for dga_logreg_v1 with grouped held-out e
 Model storage/resume:         Packaged joblib + strict metadata VERIFIED; remote resume NOT APPLICABLE
 Offline model inference:      VERIFIED for packaged local DGA model with socket disabled
 Threat coverage:              3 / 6 demonstrated; DDoS limited to SYN flood, DNS limited to DGA
-Throughput measured:          YES; 14,300-17,000 events/sec (8.1-9.5 Mbps), single-process CPU, see docs/evaluation.md
+Throughput measured:          YES; 14,100-15,800 events/sec (7.9-8.9 Mbps), single-process CPU, see docs/evaluation.md
 Demo reproducible:            VERIFIED for native scan, SYN-flood, DGA, comparison replay, and the benchmark
 PPT evidence:                 Actual dashboard screenshots and measured benchmark table captured; final deck NOT ASSEMBLED
 ```
@@ -578,9 +578,9 @@ PPT evidence:                 Actual dashboard screenshots and measured benchmar
 - State pressure stops the prototype with a named invariant. A future live path needs measured degradation/telemetry without weakening bounds.
 - Native e2e fixtures are IPv4; IPv6 has unit coverage only.
 - Child stderr is intentionally not public. Trusted diagnostics preserve the failed invariant, but additional private troubleshooting tooling may be needed later.
-- No wall-clock alert latency, throughput, CPU, or memory result exists.
+- Wall-clock alert latency, throughput, CPU, and memory are now measured on `feature/milestone-5-benchmark` (see the Benchmark State section above and `docs/evaluation.md`); not yet merged into `main`.
 - No official downloadable SIH26145 dataset was found as of 2026-08-26; the selected Majestic and DGA sources have recorded licences/provenance, and every future corpus still requires review.
-- No final presentation or end-to-end performance evidence exists yet. The local API/dashboard and actual screenshot set now exist.
+- No final presentation deck exists yet. The local API/dashboard, actual screenshot set, and measured end-to-end benchmark evidence now exist.
 
 ## Milestone 2 Approved Plan Outcome: Streaming SYN-DDoS (`VERIFIED`)
 

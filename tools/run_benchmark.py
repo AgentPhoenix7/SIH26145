@@ -13,12 +13,16 @@ Two latency samples are reported:
   call to the moment the alert has actually been serialized and
   written+flushed by an emit callback that performs the identical work as
   the real CLI's ``sih26145.cli.emit_alert`` (JSON serialization, then a
-  write and flush), except the write target is ``os.devnull`` instead of a
-  terminal/pipe so the benchmark's own output stays uncluttered. Because
-  ``run_command`` calls the emit callback immediately after ``process``
-  returns for the causing event, and processes one event fully (including
-  all of its emits) before reading the next line, this is the actual
-  time from event acceptance to alert availability, not detector time alone.
+  write and flush) into a real OS pipe drained by a background reader
+  thread (see ``_ConsumedPipe``) -- the same kernel write/consume path
+  (including finite-buffer backpressure) as the real CLI's ``sys.stdout``
+  when redirected to a consuming process, which is how ``sih26145-replay``
+  is actually used, rather than ``os.devnull``'s always-instant sink.
+  Because ``run_command`` calls the emit callback immediately after
+  ``process`` returns for the causing event, and processes one event fully
+  (including all of its emits) before reading the next line, this is the
+  actual time from event acceptance to alert availability, not detector
+  time alone.
 
 CPU time and peak resident set size are read from ``resource.getrusage`` for
 this process only (``RUSAGE_SELF``); they exclude the separate native Zeek
@@ -35,10 +39,12 @@ import platform
 import resource
 import subprocess
 import sys
+import threading
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import TracebackType
 from typing import Any, TextIO
 
 from sih26145.contracts.alerts import AlertV1
@@ -105,6 +111,41 @@ class TimingPipeline(DetectionPipeline):
         return alerts
 
 
+class _ConsumedPipe:
+    """A real OS pipe whose write end is drained by a background thread.
+
+    Writing to and flushing this pipe's write end exercises the same
+    kernel write path -- including finite-buffer backpressure -- as the
+    real CLI's ``sys.stdout`` when redirected to a consuming process (the
+    README's actual demo usage), unlike ``os.devnull``, which always
+    accepts a write instantly regardless of any downstream reader.
+    """
+
+    def __init__(self) -> None:
+        read_fd, write_fd = os.pipe()
+        self._read_file = os.fdopen(read_fd, "rb")
+        self.write_file: TextIO = os.fdopen(write_fd, "w", encoding="utf-8")
+        self._thread = threading.Thread(target=self._drain, daemon=True)
+        self._thread.start()
+
+    def _drain(self) -> None:
+        while self._read_file.read(65_536):
+            pass
+
+    def __enter__(self) -> TextIO:
+        return self.write_file
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        self.write_file.close()
+        self._thread.join(timeout=5.0)
+        self._read_file.close()
+
+
 def _make_emit_alert(
     clock: _EmissionClock,
     alerts: list[AlertV1],
@@ -115,8 +156,9 @@ def _make_emit_alert(
 
     Mirrors ``sih26145.cli.emit_alert`` (JSON serialization, then write and
     flush) so timed "alert latency" reflects actual emission cost, not just
-    detector processing. Writes to ``sink`` (``os.devnull``) instead of the
-    terminal to keep benchmark output clean.
+    detector processing. ``sink`` should be a ``_ConsumedPipe``'s write end
+    (a real, actively drained OS pipe) rather than the terminal, to keep
+    benchmark output clean while still exercising a real consumed-write path.
     """
 
     def emit_alert(alert: AlertV1) -> None:
@@ -254,7 +296,7 @@ def run_benchmark(pcap_path: Path) -> BenchmarkReport:
     timing_pipeline = TimingPipeline(detector_pipeline, collected.samples, clock)
 
     usage_before = resource.getrusage(resource.RUSAGE_SELF)
-    with open(os.devnull, "w", encoding="utf-8") as sink:
+    with _ConsumedPipe() as sink:
         emit_alert = _make_emit_alert(
             clock, collected.alerts, collected.alert_latencies_seconds, sink
         )

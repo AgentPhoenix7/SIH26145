@@ -119,12 +119,12 @@ Deterministic sustained-load replay (`tests/fixtures/benchmark/sustained_load.pc
 
 | Metric | Measured value |
 | --- | ---: |
-| Sustained throughput | `~15,600` events/sec |
-| Sustained throughput | `~8.8` Mbps |
-| Event processing latency P50 / P95 / P99 | `0.019` / `0.032` / `0.332` ms |
-| Alert latency P50 / P95 / P99 (event acceptance through actual JSON serialization + write/flush) | `0.676` / `0.816` / `0.873` ms |
-| CPU (user + system) | `~1.27` s over the whole replay |
-| Peak RSS | `~144` MiB |
+| Sustained throughput | `~15,150` events/sec |
+| Sustained throughput | `~8.5` Mbps |
+| Event processing latency P50 / P95 / P99 | `0.021` / `0.035` / `0.423` ms |
+| Alert latency P50 / P95 / P99 (event acceptance through actual JSON serialization + write/flush into a real, drained OS pipe) | `0.786` / `0.946` / `0.961` ms |
+| CPU (user + system) | `~1.32` s over the whole replay |
+| Peak RSS | `~138` MiB (`141732` KiB) |
 
 This is single-process, CPU-only, one-replay measurement over 51 alert observations; it is not a live-capture, multi-core, production-traffic-mix, or large-scale tail-latency claim. See `docs/evaluation.md` for the exact per-run table and scope limitations.
 
