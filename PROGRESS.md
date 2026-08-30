@@ -8,11 +8,14 @@ Last updated: **2026-08-30 (UTC)**
 - **Current branch:** `feature/milestone-4-local-api-dashboard`
 - **Milestone 4 base commit:** `7498634bf2e91a9540197166d876c3e381adee40`
 - **Milestone 4 baseline evidence commit:** `67a78d74d63513affd8a2ac164bbd4d1c505a09a`
+- **Milestone 4 feature commit:** `571c4b1fa13529e659640259aab1475cd05182b3`
+- **Milestone 4 review-fix commit:** `47a1eda8327176480ada6ba6268bc372c3c03e20`
+- **Milestone 4 open pull request:** `https://github.com/AgentPhoenix7/SIH26145/pull/4`
 - **Milestone 2 merge commit:** `2e8706c404c088ee6e2312a740ff4df38dc63cbe`
 - **Milestone 2 final feature commit:** `7cb1eb513295a844ef8959616631f9f1e8fed531`
 - **Milestone 3 merge commit:** `9fc30e612f4ea5accbd412610b692899b93d4ffc`
 - **Milestone 3 final feature fix:** `d61bec43f6559e6191cb0d64309317844dbcc9a2`
-- **Current milestone:** Milestone 4 — minimal local API, bounded alert storage, and dashboard (**implemented and verified on the isolated feature branch; not pushed or merged**).
+- **Current milestone:** Milestone 4 — minimal local API, bounded alert storage, and dashboard (**implemented, verified, and pushed in open PR #4; not merged**).
 - **Active milestone branch:** `feature/milestone-4-local-api-dashboard`
 - **Active milestone worktree:** `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-4-local-api-dashboard`
 - **Milestone 3 base commit:** `95159b6da04f0ee7ae6b61b3befd941842aac9bc`
@@ -50,7 +53,7 @@ Last updated: **2026-08-30 (UTC)**
 
 ### In Progress
 
-- The verified Milestone 4 feature branch awaits user review/integration. No push or merge is authorized.
+- PR #4 is open from the verified Milestone 4 feature branch into `main`. Review is in progress; no merge is authorized.
 
 ### Known Problems
 
@@ -93,7 +96,7 @@ Last updated: **2026-08-30 (UTC)**
 
 ### Immediate Next Actions
 
-1. Review the committed Milestone 4 feature branch; push or merge only with explicit user instruction.
+1. Complete PR #4 review and address only demonstrated blocking findings; merge only with explicit user instruction.
 2. Freeze Milestone 4 after integration; do not redesign Milestones 1–4 without a demonstrated regression.
 3. Treat the measured end-to-end benchmark and final submission/PPT rehearsal as the next feature-freeze priorities.
 
@@ -110,7 +113,7 @@ Progress status vocabulary is `PLANNED`, `IN PROGRESS`, `IMPLEMENTED`, `TESTED`,
 
 ## Current Phase
 
-**Milestones 1, 2, and 3 are verified, merged, and frozen on `main`. The isolated Milestone 4 branch/worktree is based on `7498634`; its minimum API/store/dashboard is implemented and verified but not pushed or merged.**
+**Milestones 1, 2, and 3 are verified, merged, and frozen on `main`. The isolated Milestone 4 branch/worktree is based on `7498634`; its minimum API/store/dashboard is implemented and verified in open PR #4 but not merged.**
 
 The verified path is:
 
@@ -549,7 +552,7 @@ The approved plan remained deliberately limited to SYN flood. All ten items are 
 9. Run the focused and full suites, replay real benign and flood fixtures, validate actual alert JSON, then update only affected README, architecture, feature, traceability, PPT, and progress documentation.
 10. Freeze Milestone 2 immediately after acceptance; UDP reflection/amplification remains deferred unless later schedule review proves it cheap and Tier 1 stays safe.
 
-Milestones 1 through 3 are merged, verified, and frozen. Milestone 4 is implemented and verified in its isolated branch, with push/merge left to explicit user direction. The next deadline priorities are the measured benchmark and final submission/PPT rehearsal.
+Milestones 1 through 3 are merged, verified, and frozen. Milestone 4 is implemented, verified, and pushed in open PR #4; merge remains subject to explicit user direction. The next deadline priorities are the measured benchmark and final submission/PPT rehearsal.
 
 ## Handoff Checklist
 
