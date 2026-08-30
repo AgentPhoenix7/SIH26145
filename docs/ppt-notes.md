@@ -1,8 +1,8 @@
 # PPT Evidence Notes
 
-Last verified: **2026-08-29 (UTC)**
+Last verified: **2026-08-30 (UTC)**
 
-These are presentation-ready facts for Milestones 1 through 3. No screenshot, end-to-end performance measurement, or dashboard is claimed here.
+These are presentation-ready facts for Milestones 1 through 4. Actual local dashboard screenshots are recorded below. No end-to-end performance measurement is claimed here.
 
 ## Verified Demo Story
 
@@ -16,9 +16,22 @@ deterministic IPv4 PCAP replay
      -> bounded target SYN rate / syn_flood_window 1.0.0
      -> local dns_features_v1 + dga_logreg_v1
   -> strict alert_v1 JSON Line
+  -> bounded 100-alert in-memory store
+  -> loopback API + same-origin static dashboard
 ```
 
 The detectors are passive and local: they read validated metadata from a PCAP replay, do not contact observed endpoints or domains, do not complete handshakes, and do not decrypt payloads. Scan, SYN-flood, and DGA callbacks were observed before end-of-stream, demonstrating incremental detection rather than a post-run report. Runtime DGA inference opens no socket and requires no Internet access.
+
+## Actual Local Dashboard Evidence
+
+The local server binds to `127.0.0.1:8000`, accepts only seven fixed fixture identifiers, and feeds the existing replay runner's alert callback into a 100-record in-memory store. The browser requests at most 50 newest-first records and renders actual `alert_v1` values using text-only DOM assignment.
+
+Browser inspection exercised all three alert fixtures through the real controls and observed three stored cards in this order: `DGA`, `SYN_FLOOD`, `PORT_SCAN`. It also exercised offline failure and recovery states. At 1440×1000 and 390×844 there was no horizontal overflow; all cards stayed within the narrow viewport; no console error or framework overlay was observed.
+
+- [PPT-ready dashboard overview](screenshots/milestone4-dashboard-empty.png)
+- [PPT-ready actual alert evidence](screenshots/milestone4-dashboard-alerts.png)
+
+The dashboard states the honest boundary on-screen: UDP reflection/amplification and DNS tunnelling are `NOT IMPLEMENTED`; C2 beaconing, TLS/QUIC malware metadata, and data exfiltration are `DEFERRED`.
 
 ## Actual Threshold Alert
 
@@ -113,6 +126,7 @@ uv run sih26145-replay tests/fixtures/milestone2/syn_flood_at_threshold.pcap
 uv run sih26145-replay tests/fixtures/milestone2/benign_distributed.pcap
 uv run sih26145-replay tests/fixtures/milestone3/dga_dns.pcap
 uv run sih26145-replay tests/fixtures/milestone3/benign_dns.pcap
+uv run sih26145-dashboard
 ```
 
 Expected demo behavior: each threshold command prints one compact class-specific alert JSON line; each benign command prints nothing and exits successfully. Native `zeek` must resolve through `PATH`.
@@ -125,10 +139,10 @@ Expected demo behavior: each threshold command prints one compact class-specific
 - How leakage is limited: DGA families, not rows, are held out; benign rows use stable hash buckets; domain overlap is zero. This does not guarantee unseen-family or production generalization.
 - Why evidence first: alerts carry actual triggering UIDs, capture-time windows, thresholds, rates, spans, deterministic samples, plus source fan-out or target/source-distribution evidence as appropriate.
 - How state is safe: hard bounds cover input lines, source/target event windows, UID/cooldown state, stderr retention, and process cleanup. State pressure fails with a named invariant instead of silently discarding evidence.
-- What remains: three untouched classes, UDP reflection/amplification, DNS tunnelling, API/dashboard, end-to-end throughput and latency benchmarking, and screenshots.
+- What remains: three untouched classes, UDP reflection/amplification, DNS tunnelling, end-to-end throughput and latency benchmarking, and the final PPT assembly.
 
 ## Evidence Still Needed Before Final PPT
 
-- Dashboard and terminal screenshots after those artifacts actually exist.
 - Measured detector/end-to-end P50/P95/P99 latency, sustained traffic rate, CPU, and memory with methodology.
 - Controlled evidence for exfiltration and any later C2/TLS coverage; UDP reflection/amplification and DNS tunnelling remain deferred.
+- Final PPT assembly and demo rehearsal using only the verified evidence above.

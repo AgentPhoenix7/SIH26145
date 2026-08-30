@@ -1,17 +1,18 @@
 # SIH26145 Progress and Conversation Handoff
 
-Last updated: **2026-08-29 (UTC)**
+Last updated: **2026-08-30 (UTC)**
 
 ## Current Handoff State
 
-- **Date:** 2026-08-29 (UTC)
+- **Date:** 2026-08-30 (UTC)
 - **Current branch:** `feature/milestone-4-local-api-dashboard`
 - **Milestone 4 base commit:** `7498634bf2e91a9540197166d876c3e381adee40`
+- **Milestone 4 baseline evidence commit:** `67a78d74d63513affd8a2ac164bbd4d1c505a09a`
 - **Milestone 2 merge commit:** `2e8706c404c088ee6e2312a740ff4df38dc63cbe`
 - **Milestone 2 final feature commit:** `7cb1eb513295a844ef8959616631f9f1e8fed531`
 - **Milestone 3 merge commit:** `9fc30e612f4ea5accbd412610b692899b93d4ffc`
 - **Milestone 3 final feature fix:** `d61bec43f6559e6191cb0d64309317844dbcc9a2`
-- **Current milestone:** Milestone 4 — minimal local API, bounded alert storage, and dashboard (**isolated worktree and baseline verified; implementation has not started**).
+- **Current milestone:** Milestone 4 — minimal local API, bounded alert storage, and dashboard (**implemented and verified on the isolated feature branch; not pushed or merged**).
 - **Active milestone branch:** `feature/milestone-4-local-api-dashboard`
 - **Active milestone worktree:** `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-4-local-api-dashboard`
 - **Milestone 3 base commit:** `95159b6da04f0ee7ae6b61b3befd941842aac9bc`
@@ -33,18 +34,24 @@ Last updated: **2026-08-29 (UTC)**
 - Post-review Milestone 3 gate passed on 2026-08-29: frozen sync succeeded; `320 passed in 18.13s`; Ruff lint passed; Ruff confirmed 62 files formatted; strict mypy found no issues in 47 source files; all three fixture checks, actual benign/DGA replay, strict alert and artifact validation, exact scikit-learn wheel dependency inspection, wheel-resource inspection, and `git diff --check` passed.
 - PR #3 P2 follow-up now validates the original DNS query as ASCII before lowercasing, so Unicode case mappings such as U+212A cannot become accepted ASCII identities. The Kelvin-sign regression failed before the fix; afterward 97 focused contract/feature/alert/dataset/training tests, Ruff lint/format, strict mypy, and `git diff --check` passed.
 - Fresh Milestone 4 worktree baseline at `7498634` passed on 2026-08-29: frozen `uv sync` succeeded; `321 passed in 20.48s`; Ruff lint passed; Ruff confirmed 62 files formatted; strict mypy found no issues in 47 source files; all three deterministic fixture checks and `git diff --check` passed.
+- Milestone 4 now has a strict 100-record in-memory alert store, seven-enum approved fixture registry, loopback-only FastAPI entrypoint, existing replay-callback integration, and same-origin static dashboard with bounded 50-row polling/rendering.
+- Native API e2e replay stored one actual `PORT_SCAN`, `SYN_FLOOD`, and `DGA` alert newest-first. Port-scan benign, SYN-flood below-threshold, distributed benign, and benign DNS replays each added no dashboard alert.
+- Actual browser controls ran all three alert fixtures into the store. Desktop 1440×1000 and narrow 390×844 inspection found no horizontal/card overflow, undefined/object placeholder text, console errors, or framework overlay. Offline failure and recovery states were also exercised. Screenshots are in `docs/screenshots/`.
+- The AnyIO static-file regression was observed failing with `FileResponse`; fixed package assets now return from async in-memory responses. Its focused regression, 10 API integration tests, strict mypy, and the pre-review full `339 passed in 18.29s` suite passed.
+- Final read-only review reproduced two boundary defects: caller mutation could change stored alerts after validation, and a cross-origin webpage could trigger a bodyless loopback replay POST. New regressions failed first; the store now deep-copies at ingress/egress and replay mutation requires a non-safelisted fixed action header.
+- Post-review verification reported `21 passed in 2.57s` for the Milestone 4 focused command and `342 passed in 18.21s` for the full suite; the final browser action, Ruff, strict mypy, fixtures, and rebuilt wheel also passed.
 
 ### Implemented but Not Verified
 
-- None for Milestone 3. End-to-end benchmark, API/dashboard, screenshots, and later threat coverage remain separate unfinished scope.
+- End-to-end throughput, CPU, memory, and alert-latency benchmark work remains unimplemented and unverified.
 
 ### In Progress
 
-- Milestone 4 isolation and baseline verification are complete. API, alert-store, and dashboard implementation has not started.
+- The verified Milestone 4 feature branch awaits user review/integration. No push or merge is authorized.
 
 ### Known Problems
 
-- UDP reflection/amplification, DNS tunnelling, API, dashboard, and end-to-end benchmarking are not implemented.
+- UDP reflection/amplification, DNS tunnelling, and end-to-end benchmarking are not implemented.
 - Demonstrated detector coverage spans three of six named classes, but DDoS is limited to SYN floods and DNS coverage to DGA lexical classification; no full-coverage claim is valid.
 
 ### Deferred
@@ -83,9 +90,9 @@ Last updated: **2026-08-29 (UTC)**
 
 ### Immediate Next Actions
 
-1. Obtain explicit direction to begin the planned-scope Milestone 4 implementation in the isolated worktree.
-2. Implement only the minimal local API, bounded in-memory alert store, approved-fixture replay integration, and same-origin static dashboard.
-3. Run the complete acceptance gate and actual API/dashboard path before adding documentation or PPT screenshot claims.
+1. Review the committed Milestone 4 feature branch; push or merge only with explicit user instruction.
+2. Freeze Milestone 4 after integration; do not redesign Milestones 1–4 without a demonstrated regression.
+3. Treat the measured end-to-end benchmark and final submission/PPT rehearsal as the next feature-freeze priorities.
 
 ### Commands to Resume
 
@@ -100,7 +107,7 @@ Progress status vocabulary is `PLANNED`, `IN PROGRESS`, `IMPLEMENTED`, `TESTED`,
 
 ## Current Phase
 
-**Milestones 1, 2, and 3 are verified, merged, and frozen on `main`. The isolated Milestone 4 branch/worktree is based on `7498634`, and its complete pre-implementation baseline passes; implementation has not started.**
+**Milestones 1, 2, and 3 are verified, merged, and frozen on `main`. The isolated Milestone 4 branch/worktree is based on `7498634`; its minimum API/store/dashboard is implemented and verified but not pushed or merged.**
 
 The verified path is:
 
@@ -114,9 +121,11 @@ deterministic PCAP replay
      -> bounded capture-time target SYN state
      -> shared lexical features + packaged local Logistic Regression
   -> evidence-bearing alert_v1 PORT_SCAN / SYN_FLOOD / DGA output
+  -> bounded 100-alert in-memory store
+  -> loopback API + same-origin static dashboard
 ```
 
-Demonstrated detector coverage spans three of six required classes: reconnaissance/port scanning, the SYN-flood subset of volumetric/protocol DDoS, and DGA lexical detection. UDP reflection/amplification, C2 beaconing, DNS tunnelling, encrypted-session malware metadata, data exfiltration, an API/dashboard, and end-to-end benchmarking remain absent.
+Demonstrated detector coverage spans three of six required classes: reconnaissance/port scanning, the SYN-flood subset of volumetric/protocol DDoS, and DGA lexical detection. UDP reflection/amplification, C2 beaconing, DNS tunnelling, encrypted-session malware metadata, data exfiltration, and end-to-end benchmarking remain absent.
 
 ## Authoritative Context and Git State
 
@@ -215,6 +224,26 @@ Milestone 3 adds:
 - Stateless DNS routing and typed `DGA` `alert_v1` evidence containing actual probability, query, query type, threshold, model/feature identities, and recomputed lexical summaries.
 - Two deterministic offline DNS PCAPs and manifests. Synthetic DGA replay alerts before EOS; controlled benign replay emits no alert.
 
+Milestone 4 adds:
+
+- A strict thread-safe `AlertStore` with capacity 100, oldest-first eviction, newest-first bounded snapshots, validation before mutation, and deep-copy isolation at ingress/egress.
+- A shared runtime factory used by both the existing CLI and the API, preserving one detector/replay path and existing CLI JSONL behavior.
+- A loopback FastAPI entrypoint with `GET /api/alerts?limit=1..100` and guarded `POST /api/replays/{fixture_id}` for seven code-owned committed fixtures only. The fixed non-safelisted action header prevents cross-origin webpages from triggering the mutation without a denied preflight.
+- One synchronous replay coordinator that feeds the existing callback directly into the store and returns fixed safe errors without exposing child diagnostics.
+- A package-local static HTML/CSS/JavaScript dashboard with no frontend dependency or build step, same-origin requests, at most 50 rows, non-overlapping polling, replay-time polling pause, text-only DOM assignment, responsive geometry, and explicit unsupported-coverage labels.
+- Actual empty and three-alert screenshots after desktop and narrow browser inspection.
+
+## Milestone 4 Acceptance
+
+- [x] Locked environment synchronization succeeds and the recorded pre-implementation baseline passed.
+- [x] API entrypoint binds to loopback by default; route limits and fixture identifiers reject invalid input safely.
+- [x] Alert validation precedes mutation; capacity, deterministic oldest eviction, newest-first ordering, and bounded snapshots have focused tests.
+- [x] The existing replay callback feeds the store through the shared three-detector runtime factory without duplicating detector logic.
+- [x] Native port-scan, SYN-flood, and DGA fixture replays each add their expected strict alert; four benign/below-threshold comparisons add none.
+- [x] The real dashboard displays actual stored values and evidence with bounded polling/rows and explicit unsupported coverage.
+- [x] Browser inspection covers loading/empty/success/failure/recovery behavior, actual replay controls, desktop and narrow geometry, overflow, and console errors.
+- [x] Final full tests, Ruff, strict mypy, three fixture checks, package-resource inspection, documentation checks, and `git diff --check` pass together.
+
 ## Milestone 3 Acceptance
 
 - [x] Dataset source, licence, format, restrictions, hashes, revision, selected files, and limitations are recorded.
@@ -262,6 +291,26 @@ PR #3 follow-up review found that lowercasing preceded ASCII validation. `normal
 - [x] Requirements traceability, feature documentation, PPT facts, and this handoff are current.
 
 ## Exact Evidence Commands
+
+Fresh Milestone 4 verification was run from the dedicated worktree on 2026-08-30:
+
+```bash
+UV_CACHE_DIR=/tmp/sih26145-uv-cache UV_LINK_MODE=copy uv sync --frozen --group dev
+UV_CACHE_DIR=/tmp/sih26145-uv-cache UV_LINK_MODE=copy uv run pytest tests/unit/test_alert_store.py tests/integration/test_api.py tests/e2e/test_milestone4.py -q
+UV_CACHE_DIR=/tmp/sih26145-uv-cache UV_LINK_MODE=copy uv run pytest -q
+UV_CACHE_DIR=/tmp/sih26145-uv-cache UV_LINK_MODE=copy uv run ruff check .
+UV_CACHE_DIR=/tmp/sih26145-uv-cache UV_LINK_MODE=copy uv run ruff format --check .
+UV_CACHE_DIR=/tmp/sih26145-uv-cache UV_LINK_MODE=copy uv run mypy src tests tools
+UV_CACHE_DIR=/tmp/sih26145-uv-cache UV_LINK_MODE=copy uv run python tools/generate_milestone1_fixtures.py --output tests/fixtures/milestone1 --check
+UV_CACHE_DIR=/tmp/sih26145-uv-cache UV_LINK_MODE=copy uv run python tools/generate_milestone2_fixtures.py --output tests/fixtures/milestone2 --check
+UV_CACHE_DIR=/tmp/sih26145-uv-cache UV_LINK_MODE=copy uv run python tools/generate_milestone3_fixtures.py --output tests/fixtures/milestone3 --check
+UV_CACHE_DIR=/tmp/sih26145-uv-cache UV_LINK_MODE=copy uv build
+git diff --check
+```
+
+Observed results: locked sync checked 33 packages; the final Milestone 4 focused command reported `21 passed in 2.57s`; the full suite reported `342 passed in 18.21s`; Ruff lint passed; Ruff confirmed 68 files formatted; strict mypy found no issues in 53 source files; and all three fixture checks exited `0`. The first sandboxed build attempt failed only because build isolation could not resolve Hatchling through restricted DNS; the identical final build with dependency-download access produced the sdist and wheel. Wheel inspection found the API/store/runtime modules, all three dashboard assets, both console entrypoints, and exact FastAPI/Uvicorn/scikit-learn requirements. `git diff --check` passed.
+
+The real `sih26145-dashboard` server was inspected on `127.0.0.1:8000`. Browser controls ran the three alert fixtures and rendered three actual cards, then a fresh post-static-response check ran one port-scan fixture and rendered one card. Desktop and 390-pixel checks had no horizontal/card overflow; offline failure and recovery states rendered; content and interactive controls were present; no error overlay, placeholder object text, or console error was observed. The two committed PNGs were captured from the real dashboard before documentation claimed them.
 
 Fresh post-review Milestone 3 verification was run from the dedicated worktree on 2026-08-29:
 
@@ -463,7 +512,7 @@ Offline model inference:      VERIFIED for packaged local DGA model with socket 
 Threat coverage:              3 / 6 demonstrated; DDoS limited to SYN flood, DNS limited to DGA
 Throughput measured:          NO
 Demo reproducible:            VERIFIED for native scan, SYN-flood, DGA, and comparison replay
-PPT evidence:                 Verified facts recorded; screenshots and performance plots NOT CAPTURED
+PPT evidence:                 Actual dashboard screenshots captured; performance plots NOT CAPTURED
 ```
 
 ## Limitations and Risks
@@ -480,7 +529,7 @@ PPT evidence:                 Verified facts recorded; screenshots and performan
 - Child stderr is intentionally not public. Trusted diagnostics preserve the failed invariant, but additional private troubleshooting tooling may be needed later.
 - No wall-clock alert latency, throughput, CPU, or memory result exists.
 - No official downloadable SIH26145 dataset was found as of 2026-08-26; the selected Majestic and DGA sources have recorded licences/provenance, and every future corpus still requires review.
-- No API/dashboard, screenshot set, or final presentation exists yet.
+- No final presentation or end-to-end performance evidence exists yet. The local API/dashboard and actual screenshot set now exist.
 
 ## Milestone 2 Approved Plan Outcome: Streaming SYN-DDoS (`VERIFIED`)
 
@@ -497,13 +546,13 @@ The approved plan remained deliberately limited to SYN flood. All ten items are 
 9. Run the focused and full suites, replay real benign and flood fixtures, validate actual alert JSON, then update only affected README, architecture, feature, traceability, PPT, and progress documentation.
 10. Freeze Milestone 2 immediately after acceptance; UDP reflection/amplification remains deferred unless later schedule review proves it cheap and Tier 1 stays safe.
 
-Milestones 1 through 3 are merged, verified, and frozen. The next deadline priority is the minimal local API, bounded alert storage, and dashboard, followed by the reproducible demo, measured benchmark, and submission evidence.
+Milestones 1 through 3 are merged, verified, and frozen. Milestone 4 is implemented and verified in its isolated branch, with push/merge left to explicit user direction. The next deadline priorities are the measured benchmark and final submission/PPT rehearsal.
 
 ## Handoff Checklist
 
 1. Confirm the repository/worktree and inspect `git status`, diffs, and recent commits.
 2. Read `AGENTS.md`, `docs/problem.md`, this file, and relevant source/tests completely.
-3. Confirm the active Milestone 4 branch/worktree and base commit recorded above; keep Milestones 1 through 3 frozen.
+3. Confirm the active Milestone 4 branch/worktree and base commit recorded above; keep Milestones 1 through 3 frozen and do not broaden the implemented Milestone 4 slice.
 4. Treat this as a verified snapshot, not a substitute for fresh commands.
-5. Do not redesign frozen Milestones 1 through 3 or broaden Milestone 4 beyond the minimum planned scope.
+5. Do not redesign frozen Milestones 1 through 3 or broaden Milestone 4 beyond the implemented minimum scope.
 6. Never claim a class, model, dashboard, metric, screenshot, or benchmark without actual current evidence.

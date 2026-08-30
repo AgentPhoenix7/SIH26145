@@ -1,6 +1,6 @@
 # SIH26145
 
-Small, passive, streaming MVP for **AI-Based Detection of Cyber Threats in Unidirectional IP Traffic**. The current path replays deterministic PCAPs through native Zeek and emits strict, evidence-bearing `PORT_SCAN`, `SYN_FLOOD`, and locally inferred `DGA` alerts. Demonstrated coverage spans three of six named classes, with DDoS limited to SYN floods and DNS coverage limited to DGA lexical classification; API/dashboard and performance benchmarks are not implemented yet.
+Small, passive, streaming MVP for **AI-Based Detection of Cyber Threats in Unidirectional IP Traffic**. The current path replays deterministic PCAPs through native Zeek and emits strict, evidence-bearing `PORT_SCAN`, `SYN_FLOOD`, and locally inferred `DGA` alerts. A loopback-only API stores those actual alerts in a bounded in-memory queue and serves a same-origin dashboard. Demonstrated coverage spans three of six named classes, with DDoS limited to SYN floods and DNS coverage limited to DGA lexical classification; performance benchmarks are not implemented yet.
 
 ## Prerequisites
 
@@ -62,6 +62,23 @@ Default port-scan detection requires at least 20 deduplicated SYN attempts in a 
 
 Configuration is rejected before Zeek starts if a window is too small to keep its maximum derived rate finite, exceeds the 60-second UID deduplication TTL, or a threshold exceeds its detector's effective state capacity. Port-scan capacity is 4,096 events per source; SYN-flood capacity is 8,192 events per target under default limits.
 
+## Local Dashboard Demo
+
+Run from the repository root, then open <http://127.0.0.1:8000>:
+
+```bash
+uv run sih26145-dashboard
+```
+
+The server binds to `127.0.0.1:8000` by default. `POST /api/replays/{fixture_id}` accepts only seven fixed committed fixture identifiers and requires `X-SIH26145-Action: run-approved-fixture`, a non-safelisted header that prevents a cross-origin webpage from issuing the bodyless action without a failed preflight. It cannot select an arbitrary file or executable. `GET /api/alerts?limit=50` returns newest-first strict `alert_v1` records. The process-local store holds at most 100 isolated alert copies and deterministically evicts the oldest alert when full. Restarting the server clears it.
+
+The static HTML/CSS/JavaScript dashboard uses only same-origin API calls, displays at most 50 rows, pauses polling during its one active replay, and shows actual alert values and measured evidence. It labels UDP reflection/amplification and DNS tunnelling `NOT IMPLEMENTED`, and C2 beaconing, TLS/QUIC malware metadata, and data exfiltration `DEFERRED`.
+
+Actual inspected screenshots:
+
+- [Dashboard overview before an alert replay](docs/screenshots/milestone4-dashboard-empty.png)
+- [Alert evidence view with three stored records; DGA and SYN-flood cards visible](docs/screenshots/milestone4-dashboard-alerts.png)
+
 See [architecture](docs/architecture.md), [feature definitions](docs/features.md), [evaluation](docs/evaluation.md), [limitations](docs/limitations.md), [requirements traceability](docs/requirements-traceability.md), and [current progress](PROGRESS.md) for exact semantics and evidence.
 
-Frontend work has not started. **Bun** is reserved for later React/TypeScript frontend dependencies and scripts; npm, pnpm, and Yarn are not used.
+The submission dashboard deliberately uses browser-native HTML/CSS/JavaScript, so it has no frontend package manager, build step, framework, or remote asset dependency. If later frontend dependencies become necessary, prefer Bun; they are not required for this MVP.

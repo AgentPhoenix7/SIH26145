@@ -1,6 +1,6 @@
 # SIH26145 Requirements Traceability
 
-Last verified: **2026-08-29 (UTC)**
+Last verified: **2026-08-30 (UTC)**
 
 Status vocabulary is restricted to `PLANNED`, `IN PROGRESS`, `IMPLEMENTED`, `VERIFIED`, and `DEFERRED`. `VERIFIED` below means current command or inspection evidence exists for the precise row; it does not imply the entire official solution is complete.
 
@@ -13,23 +13,23 @@ Status vocabulary is restricted to `PLANNED`, `IN PROGRESS`, `IMPLEMENTED`, `VER
 | No payload decryption | Scan and SYN-flood detection must depend only on observable SYN metadata. | `tcp_syn_attempt_v1` contains timestamp, UID, endpoints, ports, and transport; the verified path has no payload or decryption component. | VERIFIED |
 | Streaming, not whole-file batch reporting | An alert must be delivered before the Zeek EOS record is accepted, and a stalled record must not block forever. | Native port-scan, SYN-flood, and DGA replay tests observe `alert,end_of_stream`; focused integration coverage proves mixed SYN/DNS accounting and bounded partial-record failure/cleanup. | VERIFIED |
 | Bounded alert latency | Operational alerting must have a stated and measured bound. | Incremental callback and flush are implemented, but wall-clock detector/end-to-end latency and P50/P95/P99 are not measured. | PLANNED |
-| Bounded and safe state | Windows, deduplication, cooldown, input lines, and child pipes require explicit limits and failure behavior. | Focused tests cover the source-keyed scan and target-keyed SYN-flood limits, constant-work incremental entropy updates, deferred alert-only source sorting, retry-safe cooldown-capacity rollback, expiry, exact boundaries, finite derived-rate validation, achievable thresholds, window/UID-TTL consistency, the private 64-KiB stderr tail, bounded pre-EOS record inactivity, pre-EOS terminate-to-kill grace, and one absolute post-EOS deadline. | VERIFIED |
+| Bounded and safe state | Windows, deduplication, cooldown, input lines, child pipes, alert storage, and browser work require explicit limits and failure behavior. | Detector/process limits retain their focused coverage. The local store is fixed at 100, oldest-first eviction and newest-first bounded snapshots are tested, the API caps requested alerts at 100, and the dashboard renders and polls for at most 50. | VERIFIED |
 | Standardized alert schema | Alert includes timestamp, flow ID, class, confidence, and supporting evidence. | Actual port-scan, SYN-flood, and DGA CLI lines validate as strict `alert_v1`; DGA evidence includes model/feature versions, threshold, query, and recomputed lexical summaries. | VERIFIED |
 | Defined and demonstrated throughput target | State sustained traffic rate and methodology. | No throughput, CPU, memory, or latency benchmark has been run. | PLANNED |
 | Working ingest, feature extraction, model inference, and alert prototype | Full prototype must include a genuine deployed model. | Native replay emits strict SYN/DNS events; shared `dns_features_v1` feeds packaged `dga_logreg_v1`; local offline inference emits one actual DGA alert. | VERIFIED |
 | Model/features/training-validation documentation | Preserve shared features, grouped splits, metrics, selection, and limitations. | Dataset provenance, 140 ordered features, family-disjoint split, held-out precision/recall/F1/FPR, artifact integrity, CPU inference, and limitations are recorded. | VERIFIED |
-| Simple live or replay dashboard | Display detections with severity and confidence. | No API or dashboard exists; Bun is reserved for later frontend work. | PLANNED |
+| Simple live or replay dashboard | Display detections with severity and confidence. | Loopback FastAPI routes run only fixed committed replays through the existing callback path; replay mutation requires a non-safelisted same-origin action header. The static dashboard displayed actual `PORT_SCAN`, `SYN_FLOOD`, and `DGA` values, severity, confidence, identity, endpoints/query, and evidence. Desktop and 390-pixel browser inspections found no horizontal/card overflow or console errors. | VERIFIED |
 
 ## Required Threat Coverage
 
 | Named threat class | Intended method | Evidence | Status |
 | --- | --- | --- | --- |
 | Volumetric/protocol DDoS: SYN flood, UDP reflection/amplification, spoofed-source characteristics | Destination SYN rate, unique-source count, and source entropy on the streaming path. | Native exact-threshold SYN-flood replay emits one typed alert before EOS; 99-event and distributed-benign fixtures emit none. Entropy is distribution evidence, not proof of spoofing. UDP reflection/amplification and stronger spoofed-source inference remain deferred. | IN PROGRESS |
-| Botnet C2 beaconing | Jitter-tolerant periodicity/inter-arrival analysis. | No C2 events, features, detector, or scenario exists. | PLANNED |
+| Botnet C2 beaconing | Jitter-tolerant periodicity/inter-arrival analysis. | No C2 events, features, detector, or scenario exists; the dashboard labels it `DEFERRED`. | DEFERRED |
 | DGA domains and DNS tunnelling | Passive DNS lexical/statistical features plus genuine supervised ML where supported. | DGA is verified through strict request events, provenance-backed grouped training, packaged offline Logistic Regression, typed evidence, and native benign/DGA replay. DNS tunnelling is not implemented. | IN PROGRESS |
-| Encrypted-session malware indicators | Visible TLS/QUIC metadata only, never decrypted payload. | No TLS/QUIC feature or detector exists. | PLANNED |
+| Encrypted-session malware indicators | Visible TLS/QUIC metadata only, never decrypted payload. | No TLS/QUIC feature or detector exists; the dashboard labels it `DEFERRED`. | DEFERRED |
 | Reconnaissance and port scanning | Per-source deduplicated SYN fan-out across destination ports or hosts. | Native vertical/horizontal replay tests, bounded state tests, strict alert validation, and one actual threshold alert pass. | VERIFIED |
-| Data exfiltration | Asymmetric flow volume and baseline-aware outbound/inbound behavior. | No byte-volume event, baseline, detector, or controlled scenario exists. | PLANNED |
+| Data exfiltration | Asymmetric flow volume and baseline-aware outbound/inbound behavior. | No byte-volume event, baseline, detector, or controlled scenario exists; the dashboard labels it `DEFERRED`. | DEFERRED |
 
 Demonstrated detector coverage spans **3 of 6 named classes: reconnaissance/port scanning, the SYN-flood subset of volumetric/protocol DDoS, and DGA lexical detection**. DDoS is incomplete because UDP reflection/amplification is deferred; the combined DGA/DNS-tunnelling class is incomplete because tunnelling is deferred.
 
@@ -47,6 +47,8 @@ uv run mypy src tests tools
 uv run python tools/generate_milestone1_fixtures.py --output tests/fixtures/milestone1 --check
 uv run python tools/generate_milestone2_fixtures.py --output tests/fixtures/milestone2 --check
 uv run python tools/generate_milestone3_fixtures.py --output tests/fixtures/milestone3 --check
+uv run pytest tests/unit/test_alert_store.py tests/integration/test_api.py tests/e2e/test_milestone4.py -v
+uv run sih26145-dashboard
 uv run sih26145-replay tests/fixtures/milestone1/vertical_at_threshold.pcap > /tmp/sih26145-scan-alerts.jsonl
 uv run sih26145-replay tests/fixtures/milestone1/benign.pcap > /tmp/sih26145-benign-alerts.jsonl
 uv run sih26145-replay tests/fixtures/milestone2/syn_flood_at_threshold.pcap > /tmp/sih26145-flood-alerts.jsonl

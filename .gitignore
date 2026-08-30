@@ -1,4 +1,5 @@
 .worktrees/
+.superdesign/
 .venv/
 __pycache__/
 *.py[cod]

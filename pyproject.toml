@@ -5,13 +5,16 @@ description = "Passive streaming cyber-threat detection prototype"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "fastapi==0.116.1",
     "numpy>=1.24.1,<2.5",
     "pydantic>=2,<3",
     "scikit-learn==1.9.0",
+    "uvicorn==0.35.0",
 ]
 
 [project.scripts]
 sih26145-replay = "sih26145.cli:main"
+sih26145-dashboard = "sih26145.api:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -19,6 +22,7 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28,<1",
     "mypy>=1.15",
     "pytest>=8,<9",
     "ruff>=0.12",
