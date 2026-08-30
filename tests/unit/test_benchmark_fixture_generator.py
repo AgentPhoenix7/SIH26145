@@ -15,6 +15,8 @@ from tools.generate_benchmark_fixture import (
     BASE_TIMESTAMP,
     PORT_SCAN_INCIDENTS,
     SYN_FLOOD_INCIDENTS,
+    _artifacts,
+    _fixture_info,
     _load_syn_packets,
     check_all,
     generate_all,
@@ -160,3 +162,45 @@ def test_benchmark_generator_runs_as_a_direct_script(tmp_path: Path) -> None:
 
     assert result.returncode == 0, result.stderr
     assert check_all(tmp_path)
+
+
+def test_benchmark_fixture_info_matches_the_generated_artifacts() -> None:
+    artifacts = _artifacts()
+    info = json.loads(_fixture_info())
+
+    assert info["pcap_size"] == len(artifacts["sustained_load.pcap"])
+    assert info["pcap_sha256"] == hashlib.sha256(artifacts["sustained_load.pcap"]).hexdigest()
+    assert info["manifest"] == json.loads(artifacts["sustained_load.manifest.json"])
+
+
+def test_benchmark_fixture_info_runs_as_a_direct_script() -> None:
+    """tools/run_benchmark.py queries this exact CLI mode in a fresh subprocess so
+    that building the fixture's object graph never counts toward its own
+    RUSAGE_SELF peak-RSS sample; this flag itself must therefore work standalone."""
+
+    result = subprocess.run(
+        [sys.executable, "tools/generate_benchmark_fixture.py", "--fixture-info"],
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    info = json.loads(result.stdout)
+    artifacts = _artifacts()
+    assert info["pcap_size"] == len(artifacts["sustained_load.pcap"])
+    assert info["pcap_sha256"] == hashlib.sha256(artifacts["sustained_load.pcap"]).hexdigest()
+
+
+def test_benchmark_generator_requires_output_unless_fixture_info(tmp_path: Path) -> None:
+    result = subprocess.run(
+        [sys.executable, "tools/generate_benchmark_fixture.py"],
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "--output is required" in result.stderr

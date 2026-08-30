@@ -25,39 +25,57 @@ Two latency samples are reported:
   time alone.
 
 CPU time and peak resident set size are read from ``resource.getrusage``
-separately for this process (``RUSAGE_SELF``) and for the native Zeek child
-it spawns and fully waits for (``RUSAGE_CHILDREN``; this tool runs one
-replay per invocation, so a fresh process's ``RUSAGE_CHILDREN`` reliably
-isolates Zeek's contribution with no other reaped child to conflate it
-with). Combined CPU seconds are a straightforward sum; combined peak RSS
-is a conservative upper bound (the two processes' peaks are not
-necessarily simultaneous, so the true combined peak can only be lower).
+separately for the process actually performing the replay (``RUSAGE_SELF``)
+and for the native Zeek child it spawns and fully waits for
+(``RUSAGE_CHILDREN``). That process is a dedicated worker subprocess (see
+``run_benchmark`` and ``_measure_replay``) that spawns no child other than
+Zeek and calls the fixture generator itself for nothing, so its
+``RUSAGE_CHILDREN`` reliably isolates Zeek's own contribution with no other
+reaped child to conflate it with, and its ``RUSAGE_SELF`` reflects only its
+own replay work, not the fixture generator's. Combined CPU seconds are a
+straightforward sum; combined peak RSS is a conservative upper bound (the
+two processes' peaks are not necessarily simultaneous, so the true combined
+peak can only be lower).
 
 Per-event bookkeeping (processing-duration samples, emitted alerts, alert
 latencies) is kept in plain lists that grow with the input's event count,
 which would be unbounded for an arbitrary ``--pcap``. To keep this bounded
 by a known, fixed size rather than accepting arbitrary large input, the
-supplied PCAP is validated against bytes the deterministic generator
-function itself produces right now -- not a co-located manifest file,
-which would be just as caller-controlled as the PCAP -- and its size is
-checked before any of its bytes are read, so an arbitrarily large capture
-is never loaded into memory here. The completed replay's event count and
-per-class alert counts are then checked against that same generated
-fixture's own recorded expectations, so a fixture that no longer produces
-its expected workload (e.g. because Zeek, a detector default, or the
-packaged DGA model changed) cannot silently yield benchmark figures for a
-different workload than the one being reported.
+supplied PCAP is validated against a size and SHA-256 digest the
+deterministic generator function itself produces right now -- not a
+co-located manifest file, which would be just as caller-controlled as the
+PCAP -- and its size is checked before any of its bytes are read, so an
+arbitrarily large capture is never loaded into memory here; its digest is
+computed by streaming fixed-size chunks rather than loading the whole file
+at once. The completed replay's event count and per-class alert counts are
+then checked against that same generated fixture's own recorded
+expectations, so a fixture that no longer produces its expected workload
+(e.g. because Zeek, a detector default, or the packaged DGA model changed)
+cannot silently yield benchmark figures for a different workload than the
+one being reported.
+
+The generator itself builds a ~21,431-packet object graph and the full
+encoded capture to compute that expected size/digest/manifest. That work
+runs in its own throwaway subprocess (see ``_generator_fixture_info``),
+separate from the worker subprocess that performs and measures the actual
+replay, so it never counts toward either the driver's or the worker's
+``resource.getrusage`` samples -- neither the reported Python figures nor
+the reported Zeek figures (which would otherwise be polluted by way of the
+driver's ``RUSAGE_CHILDREN`` if both ran in one process) reflect the
+fixture generator's own memory or CPU footprint.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import platform
 import resource
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from collections import Counter
@@ -65,7 +83,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, TextIO
+from typing import Any, TextIO
 
 from sih26145.contracts.alerts import AlertV1
 from sih26145.detection.pipeline import DetectionPipeline
@@ -74,14 +92,14 @@ from sih26145.detection.syn_flood import SynFloodConfig, SynFloodDetector
 from sih26145.replay import ReplayResult, run_replay
 from sih26145.runtime import build_detection_pipeline
 
-if TYPE_CHECKING or __package__:
-    from tools.generate_benchmark_fixture import _artifacts as _benchmark_artifacts
-else:
-    from generate_benchmark_fixture import (  # type: ignore[no-redef]
-        _artifacts as _benchmark_artifacts,
-    )
-
 DEFAULT_PCAP = Path("tests/fixtures/benchmark/sustained_load.pcap")
+
+# Invoked as a script path (not `-m`) so this works regardless of the
+# caller's own working directory or package context, matching how the
+# generator is already exercised as a direct script elsewhere.
+_GENERATOR_SCRIPT = Path(__file__).resolve().parent / "generate_benchmark_fixture.py"
+
+_READ_CHUNK_BYTES = 1_048_576
 
 
 class UnvalidatedPcapError(ValueError):
@@ -92,21 +110,49 @@ class UnexpectedReplayResultError(ValueError):
     """The completed replay did not match the generated fixture's own expectations."""
 
 
+def _generator_fixture_info() -> dict[str, Any]:
+    """Query the generator's current pcap size/digest/manifest in a fresh subprocess.
+
+    Building the ~21,431-packet object graph and the full encoded capture
+    happens inside that subprocess, not here, so it never counts toward
+    this process's own ``resource.getrusage(RUSAGE_SELF)`` peak-RSS sample
+    -- which ``run_benchmark`` reports as the detector replay's memory
+    footprint, not the fixture generator's.
+    """
+
+    result = subprocess.run(
+        [sys.executable, str(_GENERATOR_SCRIPT), "--fixture-info"],
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=120.0,
+    )
+    if result.returncode != 0:
+        raise UnvalidatedPcapError(
+            "could not query tools/generate_benchmark_fixture.py for its current "
+            f"output: exit {result.returncode}: {result.stderr.strip()}"
+        )
+    info: dict[str, Any] = json.loads(result.stdout)
+    return info
+
+
 def _validate_pcap_matches_generated_fixture(pcap_path: Path) -> bytes:
     """Reject any PCAP that isn't exactly what the generator currently produces.
 
-    Trust is anchored to the deterministic generator function itself, not a
-    co-located manifest file the caller could fabricate to match an
+    Trust is anchored to the deterministic generator's own current output,
+    not a co-located manifest file the caller could fabricate to match an
     arbitrary large capture. The candidate's size is checked with a cheap
-    ``stat`` before any of its bytes are read, and at most ``expected_size
-    + 1`` bytes are ever read, so this cannot be used to load an
-    arbitrarily large file into memory. Returns the raw manifest JSON bytes
-    (already generated as a side effect) for the caller to parse.
+    ``stat`` before any of its bytes are read, and its digest is computed by
+    streaming fixed-size chunks rather than loading the whole file at once,
+    so this cannot be used to load an arbitrarily large file into memory.
+    Returns the manifest JSON bytes (re-serialized from the generator's
+    subprocess output) for the caller to parse.
     """
 
-    artifacts = _benchmark_artifacts()
-    expected_bytes = artifacts["sustained_load.pcap"]
-    expected_size = len(expected_bytes)
+    info = _generator_fixture_info()
+    expected_size: int = info["pcap_size"]
+    expected_sha256: str = info["pcap_sha256"]
 
     try:
         actual_size = pcap_path.stat().st_size
@@ -119,15 +165,17 @@ def _validate_pcap_matches_generated_fixture(pcap_path: Path) -> bytes:
             "tools/generate_benchmark_fixture.py."
         )
 
+    digest = hashlib.sha256()
     with pcap_path.open("rb") as handle:
-        actual_bytes = handle.read(expected_size + 1)
-    if actual_bytes != expected_bytes:
+        for chunk in iter(lambda: handle.read(_READ_CHUNK_BYTES), b""):
+            digest.update(chunk)
+    if digest.hexdigest() != expected_sha256:
         raise UnvalidatedPcapError(
             f"{pcap_path} does not match the bytes tools.generate_benchmark_fixture "
             "currently produces. Regenerate it with tools/generate_benchmark_fixture.py."
         )
 
-    return artifacts["sustained_load.manifest.json"]
+    return json.dumps(info["manifest"], sort_keys=True).encode("utf-8")
 
 
 @dataclass(slots=True)
@@ -405,10 +453,20 @@ def _verify_replay_matches_manifest(
         )
 
 
-def run_benchmark(pcap_path: Path) -> BenchmarkReport:
-    """Replay ``pcap_path`` once and return measured throughput/latency/CPU/RSS."""
+def _measure_replay(pcap_path: Path, manifest: dict[str, Any]) -> BenchmarkReport:
+    """Perform the actual measured replay and return its report.
 
-    manifest = json.loads(_validate_pcap_matches_generated_fixture(pcap_path).decode("utf-8"))
+    Callers must have already validated (in a separate process) that
+    ``pcap_path`` is byte-identical to the generator's current output and
+    that ``manifest`` is that same generator run's own recorded
+    expectations; this function trusts both without re-deriving them. It
+    spawns no child process other than the native Zeek child ``run_replay``
+    starts and fully waits for, so ``RUSAGE_CHILDREN`` cleanly isolates
+    Zeek's own CPU/RSS with no other reaped child to conflate it with, and
+    its own ``RUSAGE_SELF`` reflects only this replay's Python-side work,
+    not the fixture generator's (see ``run_benchmark`` and the module
+    docstring for why that separation matters).
+    """
 
     detector_pipeline = build_detection_pipeline(
         port_scan=PortScanDetector(config=ScanConfig()),
@@ -418,9 +476,6 @@ def run_benchmark(pcap_path: Path) -> BenchmarkReport:
     clock = _EmissionClock()
     timing_pipeline = TimingPipeline(detector_pipeline, collected.samples, clock)
 
-    # RUSAGE_CHILDREN isolates Zeek's contribution cleanly only because this
-    # tool runs exactly one replay per process invocation: no other child is
-    # reaped before or during this measurement window (see module docstring).
     self_before = resource.getrusage(resource.RUSAGE_SELF)
     children_before = resource.getrusage(resource.RUSAGE_CHILDREN)
     with _ConsumedPipe() as sink:
@@ -466,28 +521,105 @@ def run_benchmark(pcap_path: Path) -> BenchmarkReport:
     )
 
 
+_WORKER_TIMEOUT_SECONDS = 600.0
+
+
+def run_benchmark(pcap_path: Path) -> dict[str, Any]:
+    """Validate ``pcap_path``, then measure its replay in an isolated worker subprocess.
+
+    Two separate subprocesses do the memory/CPU-heavy work, and neither
+    result the caller reports is contaminated by the other:
+
+    1. ``_validate_pcap_matches_generated_fixture`` runs the fixture
+       generator in its own throwaway subprocess to get a trusted
+       size/digest/manifest for ``pcap_path`` (see that function).
+    2. This function then spawns a second, fresh worker subprocess (this
+       same script, re-invoked with ``--worker-manifest``) that performs
+       only ``_measure_replay`` -- it never calls the generator itself, so
+       its own ``RUSAGE_SELF``/``RUSAGE_CHILDREN`` samples cannot be
+       polluted by the generator's ~21,431-packet object graph the way a
+       single shared process would be.
+    """
+
+    manifest_bytes = _validate_pcap_matches_generated_fixture(pcap_path)
+    manifest = json.loads(manifest_bytes.decode("utf-8"))
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        manifest_path = Path(tmp_dir) / "manifest.json"
+        manifest_path.write_text(json.dumps(manifest))
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(Path(__file__).resolve()),
+                "--pcap",
+                str(pcap_path),
+                "--worker-manifest",
+                str(manifest_path),
+            ],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=_WORKER_TIMEOUT_SECONDS,
+        )
+
+    if result.returncode != 0:
+        stderr = result.stderr.strip()
+        prefix = "replay_error: "
+        if stderr.startswith(prefix):
+            raise UnexpectedReplayResultError(stderr.removeprefix(prefix))
+        raise UnexpectedReplayResultError(
+            f"benchmark worker subprocess exited {result.returncode}: {stderr}"
+        )
+    payload: dict[str, Any] = json.loads(result.stdout)
+    return payload
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--pcap", type=Path, default=DEFAULT_PCAP)
     parser.add_argument("--output", type=Path, default=None, help="write the JSON report here")
+    parser.add_argument(
+        "--worker-manifest",
+        type=Path,
+        default=None,
+        help=argparse.SUPPRESS,  # internal: used by run_benchmark's own re-invocation
+    )
     return parser
+
+
+def _run_worker(pcap_path: Path, manifest_path: Path) -> int:
+    """Entry point for the isolated worker subprocess ``run_benchmark`` spawns."""
+
+    manifest = json.loads(manifest_path.read_text())
+    try:
+        report = _measure_replay(pcap_path, manifest)
+    except UnexpectedReplayResultError as exc:
+        print(f"replay_error: {exc}", file=sys.stderr)
+        return 1
+    print(json.dumps(report.as_dict()))
+    return 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+
+    if args.worker_manifest is not None:
+        return _run_worker(args.pcap, args.worker_manifest)
+
     if not args.pcap.is_file():
         print(f"input_error: pcap_not_regular_file: {args.pcap}", file=sys.stderr)
         return 2
 
     try:
-        report = run_benchmark(args.pcap)
+        report_dict = run_benchmark(args.pcap)
     except UnvalidatedPcapError as exc:
         print(f"input_error: {exc}", file=sys.stderr)
         return 2
     except UnexpectedReplayResultError as exc:
         print(f"replay_error: {exc}", file=sys.stderr)
         return 1
-    payload = json.dumps(report.as_dict(), indent=2, sort_keys=True)
+    payload = json.dumps(report_dict, indent=2, sort_keys=True)
     if args.output is not None:
         args.output.write_text(payload + "\n")
     print(payload)

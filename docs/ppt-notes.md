@@ -119,12 +119,12 @@ Deterministic sustained-load replay (`tests/fixtures/benchmark/sustained_load.pc
 
 | Metric | Measured value |
 | --- | ---: |
-| Sustained throughput | `~16,700` events/sec |
-| Sustained throughput | `~9.4` Mbps |
-| Event processing latency P50 / P95 / P99 | `0.019` / `0.032` / `0.329` ms |
-| Alert latency P50 / P95 / P99 (event acceptance through actual JSON serialization + write/flush into a real, drained OS pipe) | `0.819` / `0.963` / `1.016` ms |
-| CPU, Python process + Zeek child | `1.20` s + `0.70` s = `~1.90` s combined |
-| Peak RSS, Python process + Zeek child | `~138` MiB + `~126` MiB ≈ `265` MiB combined (upper bound) |
+| Sustained throughput | `~17,200` events/sec |
+| Sustained throughput | `~9.7` Mbps |
+| Event processing latency P50 / P95 / P99 | `0.018` / `0.029` / `0.321` ms |
+| Alert latency P50 / P95 / P99 (event acceptance through actual JSON serialization + write/flush into a real, drained OS pipe) | `0.716` / `0.897` / `0.943` ms |
+| CPU, replay process + Zeek child | `1.15` s + `0.69` s = `~1.84` s combined |
+| Peak RSS, replay process + Zeek child | `~138.8` MiB + `~126.6` MiB ≈ `265.3` MiB combined (upper bound) |
 
 This is one-replay measurement across both the Python detector process and its native Zeek child, over 51 alert observations; it is not a live-capture, multi-core, production-traffic-mix, or large-scale tail-latency claim, and combined peak RSS is an upper bound since the two processes need not peak simultaneously. See `docs/evaluation.md` for the exact per-run table and scope limitations.
 

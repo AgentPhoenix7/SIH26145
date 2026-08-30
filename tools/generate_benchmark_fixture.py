@@ -44,6 +44,7 @@ import hashlib
 import ipaddress
 import json
 import struct
+import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -450,6 +451,35 @@ def _artifacts() -> dict[str, bytes]:
     }
 
 
+def _fixture_info() -> bytes:
+    """Return the current generated pcap's size/digest and manifest as small JSON.
+
+    Building the ~21,431-packet object graph and the full encoded capture
+    happens here, once, inside whatever process calls this function. It
+    deliberately never returns the full pcap bytes: a caller that only needs
+    to validate a candidate file (``tools/run_benchmark.py``) invokes this
+    function in a *separate* subprocess so that memory never counts toward
+    the caller's own ``resource.getrusage(RUSAGE_SELF)`` peak-RSS sample,
+    which that caller reports as the detector replay's memory footprint, not
+    the fixture generator's.
+    """
+
+    artifacts = _artifacts()
+    capture = artifacts["sustained_load.pcap"]
+    manifest = json.loads(artifacts["sustained_load.manifest.json"].decode("utf-8"))
+    return (
+        json.dumps(
+            {
+                "pcap_size": len(capture),
+                "pcap_sha256": hashlib.sha256(capture).hexdigest(),
+                "manifest": manifest,
+            },
+            sort_keys=True,
+        )
+        + "\n"
+    ).encode("utf-8")
+
+
 def generate_all(output: Path) -> list[Path]:
     """Write the deterministic fixture and return its PCAP path."""
 
@@ -470,13 +500,28 @@ def check_all(output: Path) -> bool:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--output", type=Path, default=None)
     parser.add_argument("--check", action="store_true")
+    parser.add_argument(
+        "--fixture-info",
+        action="store_true",
+        help=(
+            "print the current pcap size/sha256 and manifest as JSON to stdout "
+            "without writing any file, for validating a candidate pcap from a "
+            "separate process (see tools/run_benchmark.py)"
+        ),
+    )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.fixture_info:
+        sys.stdout.buffer.write(_fixture_info())
+        return 0
+    if args.output is None:
+        parser.error("--output is required unless --fixture-info is given")
     if args.check:
         return 0 if check_all(args.output) else 1
     generate_all(args.output)

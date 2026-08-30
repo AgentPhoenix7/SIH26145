@@ -159,6 +159,26 @@ def test_validate_pcap_matches_generated_fixture_rejects_a_missing_file(tmp_path
         _validate_pcap_matches_generated_fixture(tmp_path / "does_not_exist.pcap")
 
 
+def test_run_benchmark_does_not_import_the_generator_object_graph_in_process() -> None:
+    """Building the ~21,431-packet fixture must happen in a subprocess (see
+    _generator_fixture_info), never in this process, so it cannot inflate the
+    RUSAGE_SELF peak-RSS sample this tool reports as the detector replay's own
+    memory footprint (see the module docstring and PR #5 review discussion)."""
+
+    import ast
+
+    tree = ast.parse(Path("tools/run_benchmark.py").read_text())
+    imported_names = {
+        alias.asname or alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom)
+        for alias in node.names
+    }
+
+    assert "_artifacts" not in imported_names
+    assert "generate_benchmark_fixture" not in imported_names
+
+
 def _dga_alert() -> AlertV1:
     alert = DgaDetector(model=DgaModel.load_packaged()).process(
         dns(ts=1_700_000_000.0, query_name="x9q7z8v6k5j4m3n2.example")
