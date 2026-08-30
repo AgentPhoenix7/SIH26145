@@ -46,6 +46,7 @@ Last updated: **2026-08-30 (UTC)**
 - PR-preparation review reproduced two remaining boundaries: a model mutated before insertion could bypass instance validation, and a DNS-rebinding Host could bypass the action-header defense. Regression-first fixes now revalidate existing models through strict JSON, accept only the `127.0.0.1` Host, reject foreign browser Origins, and prove approved-fixture symlinks cannot escape the repository root.
 - Post-PR-preparation verification reported `26 passed in 3.21s` for the focused Milestone 4 command and `347 passed in 19.08s` for the full suite; locked sync, Ruff lint/format, strict mypy, all three fixture checks, and `git diff --check` also passed.
 - A real loopback HTTP check returned `200` for alert listing, `400` for a hostile Host, `403` for a hostile Origin with the action header, and `200` with zero alerts for an actual same-origin benign DGA replay. The final sdist and wheel rebuild also passed.
+- Final PR review on remote head `de260eb` found no Critical or Important issue and marked the implementation ready to merge. The one Minor limitation is already documented: fixture replay from an installed wheel still requires the source-repository root. GitHub reports no configured status checks.
 
 ### Implemented but Not Verified
 
@@ -53,7 +54,7 @@ Last updated: **2026-08-30 (UTC)**
 
 ### In Progress
 
-- PR #4 is open from the verified Milestone 4 feature branch into `main`. Review is in progress; no merge is authorized.
+- PR #4 is open from the verified Milestone 4 feature branch into `main`. Review is complete and ready to merge; no merge is authorized.
 
 ### Known Problems
 
@@ -96,7 +97,7 @@ Last updated: **2026-08-30 (UTC)**
 
 ### Immediate Next Actions
 
-1. Complete PR #4 review and address only demonstrated blocking findings; merge only with explicit user instruction.
+1. Await explicit merge direction for reviewed PR #4; do not merge automatically.
 2. Freeze Milestone 4 after integration; do not redesign Milestones 1–4 without a demonstrated regression.
 3. Treat the measured end-to-end benchmark and final submission/PPT rehearsal as the next feature-freeze priorities.
 
