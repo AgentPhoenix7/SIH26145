@@ -1,14 +1,16 @@
 # SIH26145 Progress and Conversation Handoff
 
-Last updated: **2026-08-30 (UTC)**, Milestone 5 implementation slice
+Last updated: **2026-08-30 (UTC)**, post-Milestone-5-merge handoff refresh
 
 ## Current Handoff State
 
-- **Date:** 2026-08-30 (UTC)
-- **Current branch:** `feature/milestone-5-benchmark`
+- **Date:** 2026-08-30 (UTC). The deadline was extended by explicit user instruction on 2026-08-30: MVP/PPT deadline is now **2026-09-01** (was 2026-08-31), feature freeze is now **2026-08-31** (was 2026-08-30). All Tier-1 milestones (1–5) are already merged and frozen on `main`; no milestone implementation is in progress, and the extension does not by itself reopen any frozen milestone.
+- **Current branch:** `main` (working tree clean, matches `origin/main` at `ad83ec7`)
+- **Active milestone branch/worktree:** none. `.worktrees/` is empty; every milestone feature branch has been deleted after merge. Do not resume work in `feature/milestone-5-benchmark` or `.worktrees/milestone-5-benchmark` — both are gone.
 - **Milestone 5 base commit:** `d8f3fdb` (`docs: record milestone four merge in progress handoff`, on `main`)
-- **Milestone 5 worktree:** `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-5-benchmark`
 - **Milestone 5 baseline verification (2026-08-30):** frozen `uv sync --frozen --group dev` succeeded; `347 passed in 20.09s`; Ruff lint passed; Ruff confirmed 69 files formatted; strict mypy found no issues in 53 source files; all three deterministic fixture checks exited `0`.
+- **Milestone 5 merged pull request:** `https://github.com/AgentPhoenix7/SIH26145/pull/5`, merge commit `ad83ec708823ebc8380ecba67582fe534a229519`, merged 2026-08-30T19:31:00Z. Its branch/worktree were deleted after merge.
+- **Current milestone:** Milestone 5 — measured end-to-end benchmark (throughput, alert latency, CPU, memory) (**MERGED into `main` at `ad83ec7` and FROZEN**). Milestones 1–5 are now all merged and frozen; no Tier-1 gate item remains open.
 - **Milestone 4 base commit:** `7498634bf2e91a9540197166d876c3e381adee40`
 - **Milestone 4 baseline evidence commit:** `67a78d74d63513affd8a2ac164bbd4d1c505a09a`
 - **Milestone 4 feature commit:** `571c4b1fa13529e659640259aab1475cd05182b3`
@@ -18,9 +20,6 @@ Last updated: **2026-08-30 (UTC)**, Milestone 5 implementation slice
 - **Milestone 2 final feature commit:** `7cb1eb513295a844ef8959616631f9f1e8fed531`
 - **Milestone 3 merge commit:** `9fc30e612f4ea5accbd412610b692899b93d4ffc`
 - **Milestone 3 final feature fix:** `d61bec43f6559e6191cb0d64309317844dbcc9a2`
-- **Current milestone:** Milestone 5 — measured end-to-end benchmark (throughput, alert latency, CPU, memory) (**IMPLEMENTED + TESTED**; PR #5 (`https://github.com/AgentPhoenix7/SIH26145/pull/5`) is open as a draft against `main`; review/merge/freeze not yet done).
-- **Active milestone branch:** `feature/milestone-5-benchmark`
-- **Active milestone worktree:** `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-5-benchmark`
 - **Milestone 4:** minimal local API, bounded alert storage, and dashboard (**MERGED into `main` at `44c51d88da7d9d1abb574da3775e06832cf5846a` and FROZEN**); its branch/worktree were deleted after merge.
 - **Milestone 3 base commit:** `95159b6da04f0ee7ae6b61b3befd941842aac9bc`
 - **Milestone 3 review-fix commit:** `9965de5b85d9d3add72ff417f16ad1f9a7875c19`
@@ -54,11 +53,11 @@ Last updated: **2026-08-30 (UTC)**, Milestone 5 implementation slice
 
 ### Implemented but Not Verified
 
-- None outstanding for Milestone 5; the benchmark tooling, fixture, and measured evidence below are implemented and verified by actual command execution. PR #5 is open as a draft; review/merge/freeze is the remaining step.
+- None outstanding for any milestone. The benchmark tooling, fixture, and measured evidence below are implemented and verified by actual command execution. PR #5 was reviewed, all findings fixed, merged, and frozen.
 
 ### In Progress
 
-- Milestone 5 (this worktree): implementation, tests, and full verification gate complete. PR #5 (`https://github.com/AgentPhoenix7/SIH26145/pull/5`) is open as a draft against `main`; not yet reviewed, merged, or frozen. PR #4 previously merged into `main` at `44c51d88da7d9d1abb574da3775e06832cf5846a` on 2026-08-30T12:31:46Z; Milestone 4 is frozen. `main` also carries one post-merge documentation commit, `7a7e870` (`CLAUDE.md` added as a symlink to `AGENTS.md`).
+- None. Milestones 1–5 are all merged and frozen on `main`. PR #5 (`https://github.com/AgentPhoenix7/SIH26145/pull/5`) merged at `ad83ec708823ebc8380ecba67582fe534a229519` on 2026-08-30T19:31:00Z after 21 review-driven fix/docs commits on the feature branch (the last three — `462fc3a`, `4dee1da`, `b6d286c` — bounded the pcap validation read stream, made both the pcap-validation and `--worker-manifest` opens non-blocking against a FIFO-swap TOCTOU, and relabeled README/requirements-traceability alert-latency claims as post-validation detector-to-emission latency rather than full event-acceptance-to-alert-availability latency). Its branch and worktree were deleted after merge. PR #4 previously merged into `main` at `44c51d88da7d9d1abb574da3775e06832cf5846a` on 2026-08-30T12:31:46Z; Milestone 4 is frozen. `main` also carries one earlier post-merge documentation commit, `7a7e870` (`CLAUDE.md` added as a symlink to `AGENTS.md`).
 
 ### Known Problems
 
@@ -73,7 +72,7 @@ Last updated: **2026-08-30 (UTC)**, Milestone 5 implementation slice
 
 ### Important Decisions
 
-- Deadline: 2026-08-31; feature freeze: 2026-08-30.
+- Deadline: 2026-09-01; feature freeze: 2026-08-31 (extended by explicit user instruction on 2026-08-30 from the original 2026-08-31 deadline / 2026-08-30 feature freeze).
 - Tier 1 is verified port scan + streaming DDoS + genuine DNS/DGA ML and local inference + standard alerts + minimal API/dashboard + end-to-end proof + benchmark + synchronized docs/PPT.
 - `AGENTS.pre-mvp.md` preserves the pre-deadline-policy repository instructions; `AGENTS.md` now owns the deadline-first execution policy.
 - Milestone 1 may be touched only for a later integration regression or compliance defect.
@@ -102,9 +101,9 @@ Last updated: **2026-08-30 (UTC)**, Milestone 5 implementation slice
 
 ### Immediate Next Actions
 
-1. Milestones 1–4 are merged and frozen; do not redesign them without a demonstrated regression.
-2. Milestone 5 (this worktree) is implemented, tested, and gate-verified. Review, PR, merge, and freeze it.
-3. After merge, treat final submission/PPT rehearsal as the last feature-freeze priority (2026-08-30 is feature freeze; 2026-08-31 is reserved for verification/demo/PPT/packaging only).
+1. Milestones 1–5 are merged and frozen; do not redesign them without a demonstrated regression.
+2. Every Tier-1 feature-freeze gate item is already complete on `main`. The deadline extension (feature freeze now 2026-08-31, deadline 2026-09-01) opens one additional day before freeze; do not start new milestone work on it without explicit user direction.
+3. Remaining default work is final submission/PPT rehearsal: fresh end-to-end verification, demo rehearsal, submission-blocking fixes only, screenshots, documentation sync, PPT assembly, and packaging. 2026-09-01 is reserved for that verification/demo/PPT/packaging work only — no new features.
 
 ### Commands to Resume
 
@@ -119,7 +118,7 @@ Progress status vocabulary is `PLANNED`, `IN PROGRESS`, `IMPLEMENTED`, `TESTED`,
 
 ## Current Phase
 
-**Milestones 1, 2, 3, and 4 are verified, merged, and frozen on `main`. Milestone 4's minimum API/store/dashboard merged via PR #4 at `44c51d8`; its feature branch and worktree were deleted after merge. `main` matches `origin/main`. Milestone 5 (end-to-end benchmark; see the Benchmark State section above) is implemented, tested, and gate-verified on `feature/milestone-5-benchmark` (PR #5) but not yet merged into `main`.**
+**Milestones 1, 2, 3, 4, and 5 are all verified, merged, and frozen on `main`. Milestone 4's minimum API/store/dashboard merged via PR #4 at `44c51d8`; Milestone 5's end-to-end benchmark (see the Benchmark State section above) merged via PR #5 at `ad83ec7` on 2026-08-30T19:31:00Z. Both feature branches and worktrees were deleted after merge. `main` matches `origin/main` at `ad83ec7`. Every Tier-1 feature-freeze gate item is complete; no milestone implementation is in progress.**
 
 The verified path is:
 
@@ -137,7 +136,7 @@ deterministic PCAP replay
   -> loopback API + same-origin static dashboard
 ```
 
-Demonstrated detector coverage spans three of six required classes: reconnaissance/port scanning, the SYN-flood subset of volumetric/protocol DDoS, and DGA lexical detection. UDP reflection/amplification, C2 beaconing, DNS tunnelling, encrypted-session malware metadata, and data exfiltration remain absent. End-to-end benchmarking is measured (see the Benchmark State section above and `docs/evaluation.md`) on `feature/milestone-5-benchmark`, not yet merged into `main`.
+Demonstrated detector coverage spans three of six required classes: reconnaissance/port scanning, the SYN-flood subset of volumetric/protocol DDoS, and DGA lexical detection. UDP reflection/amplification, C2 beaconing, DNS tunnelling, encrypted-session malware metadata, and data exfiltration remain absent. End-to-end benchmarking is measured (see the Benchmark State section above and `docs/evaluation.md`) and merged into `main`.
 
 ## Authoritative Context and Git State
 
@@ -147,8 +146,8 @@ Demonstrated detector coverage spans three of six required classes: reconnaissan
 - Versioned feature semantics: `docs/features.md`
 - Requirements traceability: `docs/requirements-traceability.md`
 - Repository: `/home/agntdrgn/WorkSpace/SIH26145`
-- Current branch: `feature/milestone-5-benchmark`
-- Current worktree: `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-5-benchmark` (active Milestone 5 worktree; PR #5 open as a draft against `main`, not yet merged)
+- Current branch: `main` (no active milestone branch/worktree; `.worktrees/` is empty)
+- Milestone 5 merge commit: `ad83ec708823ebc8380ecba67582fe534a229519` (PR #5, merged 2026-08-30T19:31:00Z; branch/worktree deleted after merge)
 - Milestone 4 merge commit: `44c51d88da7d9d1abb574da3775e06832cf5846a`
 - Milestone 4 base commit: `7498634bf2e91a9540197166d876c3e381adee40`
 - Main worktree: `/home/agntdrgn/WorkSpace/SIH26145`
@@ -617,7 +616,7 @@ PPT evidence:                 Actual dashboard screenshots and measured benchmar
 - State pressure stops the prototype with a named invariant. A future live path needs measured degradation/telemetry without weakening bounds.
 - Native e2e fixtures are IPv4; IPv6 has unit coverage only.
 - Child stderr is intentionally not public. Trusted diagnostics preserve the failed invariant, but additional private troubleshooting tooling may be needed later.
-- Wall-clock alert latency, throughput, CPU, and memory are now measured on `feature/milestone-5-benchmark` (see the Benchmark State section above and `docs/evaluation.md`); not yet merged into `main`.
+- Wall-clock alert latency, throughput, CPU, and memory are measured and merged into `main` (see the Benchmark State section above and `docs/evaluation.md`); the reported alert latency is post-validation detector-to-emission time, not the full record-availability-to-alert-availability bound.
 - No official downloadable SIH26145 dataset was found as of 2026-08-26; the selected Majestic and DGA sources have recorded licences/provenance, and every future corpus still requires review.
 - No final presentation deck exists yet. The local API/dashboard, actual screenshot set, and measured end-to-end benchmark evidence now exist.
 
@@ -636,13 +635,13 @@ The approved plan remained deliberately limited to SYN flood. All ten items are 
 9. Run the focused and full suites, replay real benign and flood fixtures, validate actual alert JSON, then update only affected README, architecture, feature, traceability, PPT, and progress documentation.
 10. Freeze Milestone 2 immediately after acceptance; UDP reflection/amplification remains deferred unless later schedule review proves it cheap and Tier 1 stays safe.
 
-Milestones 1 through 4 are merged, verified, and frozen on `main` (Milestone 4 via PR #4, merge commit `44c51d8`). The next deadline priorities are the measured benchmark and final submission/PPT rehearsal.
+Milestones 1 through 5 are merged, verified, and frozen on `main` (Milestone 4 via PR #4, merge commit `44c51d8`; Milestone 5 via PR #5, merge commit `ad83ec7`). Every Tier-1 feature-freeze gate item is complete. The next deadline priorities are final end-to-end verification, demo rehearsal, submission-blocking fixes only, and PPT/packaging, reserved for 2026-09-01 (deadline extended from 2026-08-31; feature freeze now 2026-08-31, was 2026-08-30).
 
 ## Handoff Checklist
 
 1. Confirm the repository/worktree and inspect `git status`, diffs, and recent commits.
 2. Read `AGENTS.md`, `docs/problem.md`, this file, and relevant source/tests completely.
-3. Confirm work continues on `feature/milestone-5-benchmark` in `.worktrees/milestone-5-benchmark` until it is reviewed, merged, and frozen; keep Milestones 1 through 4 frozen unless a demonstrated regression requires touching them.
+3. `main` is the only active branch/worktree; no milestone branch or `.worktrees/` entry currently exists. Keep Milestones 1 through 5 frozen unless a demonstrated regression requires touching them.
 4. Treat this as a verified snapshot, not a substitute for fresh commands.
-5. Do not redesign frozen Milestones 1 through 4. Milestone 5 is implemented and gate-verified but not yet reviewed/merged; do not start a new milestone worktree before that happens.
+5. Do not redesign frozen Milestones 1 through 5. All Tier-1 gate items are merged; do not start a new milestone worktree before the 2026-08-31 feature freeze ends unless the user explicitly directs otherwise. 2026-09-01 is reserved for verification/demo/PPT/packaging only.
 6. Never claim a class, model, dashboard, metric, screenshot, or benchmark without actual current evidence.

@@ -6,7 +6,7 @@ These instructions apply to the entire repository. System instructions and the u
 
 Build the smallest technically credible, end-to-end Smart India Hackathon 2026 MVP for `SIH26145 — AI-Based Detection of Cyber Threats in Unidirectional IP Traffic`.
 
-The user-imposed MVP and PPT deadline is **2026-08-31**, even if an official page displays a later idea-submission deadline. Treat **2026-08-30 as feature freeze**. Reserve 2026-08-31 for final verification, demo rehearsal, submission-blocking fixes, screenshots, documentation, PPT work, and packaging. Do not schedule experimental features for the final day.
+The user-imposed MVP and PPT deadline is **2026-09-01** (extended from the original 2026-08-31 by explicit user instruction on 2026-08-30), even if an official page displays a later idea-submission deadline. Treat **2026-08-31 as feature freeze**. Reserve 2026-09-01 for final verification, demo rehearsal, submission-blocking fixes, screenshots, documentation, PPT work, and packaging. Do not schedule experimental features for the final day.
 
 Optimize every decision for a working, demonstrable, measurable, explainable, reproducible, and defensible MVP. This is not an enterprise NDR/IDS project. Do not generate the whole system blindly or add speculative infrastructure.
 
@@ -17,8 +17,8 @@ Milestone 1 port-scan detection is **VERIFIED, MERGED into `main` at `459924c3b6
 Use this order when deciding what to do before feature freeze:
 
 1. Official SIH26145 compliance.
-2. Finish the submission-ready MVP by 2026-08-31.
-3. Protect the 2026-08-30 feature freeze.
+2. Finish the submission-ready MVP by 2026-09-01.
+3. Protect the 2026-08-31 feature freeze.
 4. Complete the Tier-1 end-to-end pipeline.
 5. Keep `PROGRESS.md` current.
 6. Integrate genuine ML.
