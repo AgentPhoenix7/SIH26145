@@ -119,14 +119,14 @@ Deterministic sustained-load replay (`tests/fixtures/benchmark/sustained_load.pc
 
 | Metric | Measured value |
 | --- | ---: |
-| Sustained throughput | `~15,150` events/sec |
-| Sustained throughput | `~8.5` Mbps |
-| Event processing latency P50 / P95 / P99 | `0.021` / `0.035` / `0.423` ms |
-| Alert latency P50 / P95 / P99 (event acceptance through actual JSON serialization + write/flush into a real, drained OS pipe) | `0.786` / `0.946` / `0.961` ms |
-| CPU (user + system) | `~1.32` s over the whole replay |
-| Peak RSS | `~138` MiB (`141732` KiB) |
+| Sustained throughput | `~16,700` events/sec |
+| Sustained throughput | `~9.4` Mbps |
+| Event processing latency P50 / P95 / P99 | `0.019` / `0.032` / `0.329` ms |
+| Alert latency P50 / P95 / P99 (event acceptance through actual JSON serialization + write/flush into a real, drained OS pipe) | `0.819` / `0.963` / `1.016` ms |
+| CPU, Python process + Zeek child | `1.20` s + `0.70` s = `~1.90` s combined |
+| Peak RSS, Python process + Zeek child | `~138` MiB + `~126` MiB ≈ `265` MiB combined (upper bound) |
 
-This is single-process, CPU-only, one-replay measurement over 51 alert observations; it is not a live-capture, multi-core, production-traffic-mix, or large-scale tail-latency claim. See `docs/evaluation.md` for the exact per-run table and scope limitations.
+This is one-replay measurement across both the Python detector process and its native Zeek child, over 51 alert observations; it is not a live-capture, multi-core, production-traffic-mix, or large-scale tail-latency claim, and combined peak RSS is an upper bound since the two processes need not peak simultaneously. See `docs/evaluation.md` for the exact per-run table and scope limitations.
 
 ## Demo Commands
 
@@ -157,7 +157,7 @@ Expected demo behavior: each threshold command prints one compact class-specific
 - Why evidence first: alerts carry actual triggering UIDs, capture-time windows, thresholds, rates, spans, deterministic samples, plus source fan-out or target/source-distribution evidence as appropriate.
 - How state is safe: hard bounds cover input lines, source/target event windows, UID/cooldown state, stderr retention, and process cleanup. State pressure fails with a named invariant instead of silently discarding evidence.
 - What remains: three untouched classes, UDP reflection/amplification, DNS tunnelling, and the final PPT assembly.
-- How the benchmark stays honest: it reuses the unmodified `DetectionPipeline`/`run_replay` path, times it with a subclassed proxy rather than a separate code path, mixes benign background load with 10+10+31 independent copies of the already-verified Milestone 1/2/3 alert patterns (31 DGA domains are individually model-verified above threshold, not assumed), measures alert latency through real JSON serialization and write+flush rather than detector time alone, reports per-metric medians (not one cherry-picked "representative" run), and discloses that 51 alert samples still bound how much a P95/P99 claim can support.
+- How the benchmark stays honest: it reuses the unmodified `DetectionPipeline`/`run_replay` path, times it with a subclassed proxy rather than a separate code path, mixes benign background load with 10+10+31 independent copies of the already-verified Milestone 1/2/3 alert patterns (31 DGA domains are individually model-verified above threshold, not assumed; the traffic's true benign mechanism is itself measured against the real detectors, not assumed), measures alert latency through real JSON serialization and write+flush rather than detector time alone, measures CPU/RSS for both the Python process and the native Zeek child it spawns (not Python alone), reports per-metric medians (not one cherry-picked "representative" run), discloses that 51 alert samples still bound how much a P95/P99 claim can support, and discloses a discarded noisy run rather than hiding it.
 
 ## Evidence Still Needed Before Final PPT
 

@@ -24,10 +24,14 @@ Two latency samples are reported:
   actual time from event acceptance to alert availability, not detector
   time alone.
 
-CPU time and peak resident set size are read from ``resource.getrusage`` for
-this process only (``RUSAGE_SELF``); they exclude the separate native Zeek
-child process, which is measured only by its contribution to wall-clock
-throughput.
+CPU time and peak resident set size are read from ``resource.getrusage``
+separately for this process (``RUSAGE_SELF``) and for the native Zeek child
+it spawns and fully waits for (``RUSAGE_CHILDREN``; this tool runs one
+replay per invocation, so a fresh process's ``RUSAGE_CHILDREN`` reliably
+isolates Zeek's contribution with no other reaped child to conflate it
+with). Combined CPU seconds are a straightforward sum; combined peak RSS
+is a conservative upper bound (the two processes' peaks are not
+necessarily simultaneous, so the true combined peak can only be lower).
 """
 
 from __future__ import annotations
@@ -249,12 +253,21 @@ class BenchmarkReport:
     megabits_per_second: float
     event_latency: LatencyStats
     alert_latency: LatencyStats | None
-    cpu_user_seconds: float
-    cpu_system_seconds: float
-    peak_rss_kib: int
+    python_cpu_user_seconds: float
+    python_cpu_system_seconds: float
+    python_peak_rss_kib: int
+    zeek_cpu_user_seconds: float
+    zeek_cpu_system_seconds: float
+    zeek_peak_rss_kib: int
     environment: dict[str, str | int | None]
 
     def as_dict(self) -> dict[str, Any]:
+        combined_cpu_seconds = (
+            self.python_cpu_user_seconds
+            + self.python_cpu_system_seconds
+            + self.zeek_cpu_user_seconds
+            + self.zeek_cpu_system_seconds
+        )
         return {
             "schema_version": "benchmark_report_v1",
             "pcap_path": self.pcap_path,
@@ -269,10 +282,19 @@ class BenchmarkReport:
             "event_processing_latency": self.event_latency.as_dict(),
             "alert_latency": (self.alert_latency.as_dict() if self.alert_latency else None),
             "cpu": {
-                "user_seconds": self.cpu_user_seconds,
-                "system_seconds": self.cpu_system_seconds,
+                "python_user_seconds": self.python_cpu_user_seconds,
+                "python_system_seconds": self.python_cpu_system_seconds,
+                "zeek_user_seconds": self.zeek_cpu_user_seconds,
+                "zeek_system_seconds": self.zeek_cpu_system_seconds,
+                "combined_seconds": combined_cpu_seconds,
             },
-            "peak_rss_kib": self.peak_rss_kib,
+            "memory": {
+                "python_peak_rss_kib": self.python_peak_rss_kib,
+                "zeek_peak_rss_kib": self.zeek_peak_rss_kib,
+                "combined_peak_rss_kib_upper_bound": (
+                    self.python_peak_rss_kib + self.zeek_peak_rss_kib
+                ),
+            },
             "environment": self.environment,
         }
 
@@ -295,7 +317,11 @@ def run_benchmark(pcap_path: Path) -> BenchmarkReport:
     clock = _EmissionClock()
     timing_pipeline = TimingPipeline(detector_pipeline, collected.samples, clock)
 
-    usage_before = resource.getrusage(resource.RUSAGE_SELF)
+    # RUSAGE_CHILDREN isolates Zeek's contribution cleanly only because this
+    # tool runs exactly one replay per process invocation: no other child is
+    # reaped before or during this measurement window (see module docstring).
+    self_before = resource.getrusage(resource.RUSAGE_SELF)
+    children_before = resource.getrusage(resource.RUSAGE_CHILDREN)
     with _ConsumedPipe() as sink:
         emit_alert = _make_emit_alert(
             clock, collected.alerts, collected.alert_latencies_seconds, sink
@@ -303,17 +329,14 @@ def run_benchmark(pcap_path: Path) -> BenchmarkReport:
         start = time.perf_counter()
         result: ReplayResult = run_replay(pcap_path, timing_pipeline, emit_alert)
         elapsed = time.perf_counter() - start
-    usage_after = resource.getrusage(resource.RUSAGE_SELF)
+    self_after = resource.getrusage(resource.RUSAGE_SELF)
+    children_after = resource.getrusage(resource.RUSAGE_CHILDREN)
 
     pcap_bytes = pcap_path.stat().st_size
     event_durations = [sample.duration_seconds for sample in collected.samples]
     event_latency = _latency_stats(event_durations)
     if event_latency is None:
         raise ValueError("replay processed zero events; nothing to measure")
-
-    cpu_user = usage_after.ru_utime - usage_before.ru_utime
-    cpu_system = usage_after.ru_stime - usage_before.ru_stime
-    peak_rss = usage_after.ru_maxrss
 
     return BenchmarkReport(
         pcap_path=str(pcap_path),
@@ -325,9 +348,12 @@ def run_benchmark(pcap_path: Path) -> BenchmarkReport:
         megabits_per_second=(pcap_bytes * 8 / 1_000_000) / elapsed if elapsed > 0 else float("inf"),
         event_latency=event_latency,
         alert_latency=_latency_stats(collected.alert_latencies_seconds),
-        cpu_user_seconds=cpu_user,
-        cpu_system_seconds=cpu_system,
-        peak_rss_kib=peak_rss,
+        python_cpu_user_seconds=self_after.ru_utime - self_before.ru_utime,
+        python_cpu_system_seconds=self_after.ru_stime - self_before.ru_stime,
+        python_peak_rss_kib=self_after.ru_maxrss,
+        zeek_cpu_user_seconds=children_after.ru_utime - children_before.ru_utime,
+        zeek_cpu_system_seconds=children_after.ru_stime - children_before.ru_stime,
+        zeek_peak_rss_kib=children_after.ru_maxrss,
         environment={
             "python_version": sys.version.split()[0],
             "platform": platform.platform(),

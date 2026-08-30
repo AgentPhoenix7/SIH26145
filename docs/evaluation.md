@@ -65,7 +65,7 @@ Using several independent alert-triggering incidents per class (51 total: 10 `PO
 - **event processing latency**: wall-clock time for `DetectionPipeline.process` to return for one validated event (a `TimingPipeline` subclass of the frozen `DetectionPipeline` timing each call; subclassing, not wrapping, is required because `run_command` only routes DNS events to a detector that `isinstance`-checks true as `DetectionPipeline`);
 - **alert latency**: wall-clock time from that same `process` call's start to the moment the alert has actually been serialized and written+flushed by an emit callback that performs the identical work as the real CLI's `sih26145.cli.emit_alert` (JSON serialization, then write and flush — into a real OS pipe drained by a background reader thread, exercising the same kernel write/consume path as the real CLI's `sys.stdout` when piped to a consumer, rather than an always-instant `os.devnull` sink, while keeping the benchmark's own output clean). Because `run_command` calls the emit callback immediately after `process` returns for the causing event, and finishes all of one event's emits before reading the next line, this is genuinely the event-acceptance-to-alert-availability interval, not detector time alone;
 - **throughput**: total events processed and PCAP bytes divided by total wall-clock replay time (`events/sec`, `Mbps`); and
-- **CPU/memory**: `resource.getrusage(RUSAGE_SELF)` before/after the run, for this Python process only — it excludes the separate native Zeek child process, whose cost is already reflected in the wall-clock throughput figure.
+- **CPU/memory**: `resource.getrusage` sampled twice, once for this Python process (`RUSAGE_SELF`) and once for the native Zeek child it spawns and fully waits for (`RUSAGE_CHILDREN`) — the tool runs exactly one replay per process invocation, so a fresh process's `RUSAGE_CHILDREN` reliably isolates Zeek's contribution with no other reaped child to conflate it with. Combined CPU seconds are a straightforward sum of both; combined peak RSS is reported as a conservative upper bound (the two processes' peaks are not necessarily simultaneous, so the true combined peak can only be lower).
 
 Exact commands:
 
@@ -80,25 +80,29 @@ Three consecutive runs on the recorded hardware (WSL2 Linux 6.18.33.2-microsoft-
 
 | Metric | Run 1 | Run 2 | Run 3 | Per-metric median |
 | --- | ---: | ---: | ---: | ---: |
-| Wall-clock seconds | `1.3595791780007858` | `1.5187772850003967` | `1.4144621340001322` | `1.4144621340001322` |
-| Throughput (events/sec) | `15762.965737319944` | `14110.692997357017` | `15151.342326423844` | `15151.342326423844` |
-| Throughput (Mbps) | `8.869338538805593` | `7.939655220743474` | `8.52519675864216` | `8.52519675864216` |
-| Event latency P50 (ms) | `0.019316001271363348` | `0.02198799847974442` | `0.021190000552451238` | `0.021190000552451238` |
-| Event latency P95 (ms) | `0.03622800068114884` | `0.03471099989837967` | `0.03504550022626063` | `0.03504550022626063` |
-| Event latency P99 (ms) | `0.35029579958063567` | `0.4650234988730519` | `0.4234039011862481` | `0.4234039011862481` |
-| Alert latency P50 (ms) | `0.8388999995077029` | `0.7856600004743086` | `0.6848800003353972` | `0.7856600004743086` |
-| Alert latency P95 (ms) | `0.9878585005935747` | `0.946268999541644` | `0.8249559996329481` | `0.946268999541644` |
-| Alert latency P99 (ms) | `1.0792134999064729` | `0.9611939995011198` | `0.8763784999246127` | `0.9611939995011198` |
-| CPU (user + system) seconds | `1.268416` | `1.4173379999999995` | `1.324026` | `1.324026` |
-| Peak RSS (KiB) | `141636` | `141832` | `141732` | `141732` |
+| Wall-clock seconds | `1.3641615359993011` | `1.2841686550000304` | `1.2577688199999102` | `1.2841686550000304` |
+| Throughput (events/sec) | `15710.016324643668` | `16688.61789809026` | `17038.902268225676` | `16688.61789809026` |
+| Throughput (Mbps) | `8.839545524325777` | `9.390174688541759` | `9.587268986363377` | `9.390174688541759` |
+| Event latency P50 (ms) | `0.020544999642879702` | `0.019473000065772794` | `0.018926999473478645` | `0.019473000065772794` |
+| Event latency P95 (ms) | `0.032706499951018486` | `0.03150799966533668` | `0.030664499718113802` | `0.03150799966533668` |
+| Event latency P99 (ms) | `0.3728506999323145` | `0.305927799854544` | `0.3292987998065658` | `0.3292987998065658` |
+| Alert latency P50 (ms) | `0.8279169996967539` | `0.7601110010000411` | `0.8190649987227516` | `0.8190649987227516` |
+| Alert latency P95 (ms) | `1.0106180006914656` | `0.930778999645554` | `0.9632265000618645` | `0.9632265000618645` |
+| Alert latency P99 (ms) | `1.0661839996828348` | `0.9523114995317883` | `1.0164380000787787` | `1.0164380000787787` |
+| Python CPU (user + system) seconds | `1.270045` | `1.2018700000000005` | `1.159585` | `1.2018700000000005` |
+| Zeek CPU (user + system) seconds | `0.760999` | `0.700072` | `0.688406` | `0.700072` |
+| Combined CPU seconds | `2.0310439999999996` | `1.9019420000000005` | `1.8479909999999997` | `1.9019420000000005` |
+| Python peak RSS (KiB) | `141760` | `141736` | `141936` | `141760` |
+| Zeek peak RSS (KiB) | `129340` | `129448` | `129460` | `129448` |
+| Combined peak RSS, upper bound (KiB) | `271100` | `271184` | `271396` | `271184` |
 
-Each column's median is computed independently per metric (not by picking one "representative" run), so the median column does not correspond to any single run. Sustained throughput on this hardware is approximately **14,100-15,800 events/sec** (**7.9-8.9 Mbps**; median **~15,150 events/sec**, **~8.5 Mbps**), with detector-side (non-I/O) per-event processing under 0.5 ms at P99, and full event-acceptance-to-alert-availability latency (detector work plus actual JSON serialization and write+flush into a real, actively drained OS pipe) around 0.9-1.0 ms at P95/P99. Peak process memory stayed at approximately 138-139 MiB (median `141732` KiB ≈ `138.4` MiB), dominated by the loaded scikit-learn pipeline and Python/numpy/scikit-learn runtime, not by any unbounded per-event state.
+Each column's median is computed independently per metric (not by picking one "representative" run), so the median column does not correspond to any single run. Sustained throughput on this hardware is approximately **15,700-17,000 events/sec** (**8.8-9.6 Mbps**; median **~16,700 events/sec**, **~9.4 Mbps**), with detector-side (non-I/O) per-event processing under 0.5 ms at P99, and full event-acceptance-to-alert-availability latency (detector work plus actual JSON serialization and write+flush into a real, actively drained OS pipe) around 0.9-1.0 ms at P95/P99. Median combined CPU across both processes was `1.90` s (Python `1.20` s + Zeek `0.70` s); median combined peak RSS upper bound was `271184` KiB ≈ `265` MiB (Python `~138` MiB + Zeek `~126` MiB, not necessarily simultaneous). A fourth exploratory run (not included above) measured markedly higher wall-clock time and alert-latency tail (P95/P99 around 13-14 ms) with no change in CPU/RSS, consistent with transient background contention on the shared development host rather than a change in the pipeline itself; it is disclosed here rather than silently discarded.
 
 ### Scope and Limitations
 
-- This is single-process, single-replay, CPU-only measurement of the existing three detectors against one deterministic capture; it is not a claim about live-capture ingestion, multi-core scaling, or sustained multi-hour operation.
-- Alert-latency percentiles are computed from 51 alert observations per run (10 `PORT_SCAN` + 10 `SYN_FLOOD` + 31 `DGA`). This is the largest sample practical from a fast, fully deterministic offline fixture, and is far more supportive of a P95/P99 claim than a single alert per class, but 51 points is still a small sample for a 99th-percentile estimate — treat the P95/P99 figures as indicative of this fixture's behavior, not as a large-scale statistical characterization of production tail latency.
-- CPU/RSS cover the Python process only; the separate native Zeek child process is unmeasured directly, though its cost is included in wall-clock throughput.
+- This is single-process, single-replay measurement of the existing three detectors against one deterministic capture (across two processes: the Python detector pipeline and the native Zeek child it spawns); it is not a claim about live-capture ingestion, multi-core scaling, or sustained multi-hour operation.
+- Alert-latency percentiles are computed from 51 alert observations per run (10 `PORT_SCAN` + 10 `SYN_FLOOD` + 31 `DGA`). This is the largest sample practical from a fast, fully deterministic offline fixture, and is far more supportive of a P95/P99 claim than a single alert per class, but 51 points is still a small sample for a 99th-percentile estimate — treat the P95/P99 figures as indicative of this fixture's behavior, not as a large-scale statistical characterization of production tail latency. The discarded fourth run above shows those tail figures can also be sensitive to host contention, not just to the pipeline's own behavior.
+- CPU and peak RSS are reported separately for the Python process (`RUSAGE_SELF`) and the Zeek child (`RUSAGE_CHILDREN`); combined CPU is an exact sum, but combined peak RSS is an upper bound, since the two processes' peaks need not occur at the same instant.
 - Alert latency covers event acceptance through actual JSON serialization and write+flush into a real, actively drained OS pipe (mirroring the real CLI's emission code path and its consumed-write semantics); it does not cover full request-to-dashboard latency — the API/dashboard poll on a fixed interval and were not included in this measurement.
 - The 20,000-event background load and the DGA candidate domains are synthetic, address-space-bounded (RFC 5737) or PRNG-generated; they demonstrate sustained processing rate and genuine model-triggering behavior, not realistic production traffic mix or volume.
 - Figures are specific to the recorded hardware/software above and will differ elsewhere; rerun the two commands above to reproduce them.
