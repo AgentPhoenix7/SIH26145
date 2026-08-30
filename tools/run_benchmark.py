@@ -728,16 +728,32 @@ def _run_worker(pcap_path: Path, manifest_path: Path) -> int:
     ``stat().st_size`` -- a non-regular path (a FIFO, a character device such
     as ``/dev/zero``, ...) can report a misleading size (commonly ``0``)
     while still supplying unbounded or blocking bytes on read, so non-regular
-    manifest paths are rejected outright before any read is attempted.
+    manifest paths are rejected outright before any read is attempted. The
+    path is opened with ``O_NONBLOCK`` rather than a plain blocking open, and
+    the resulting descriptor is what ``fstat`` checks -- an ``is_file()``
+    pre-check alone still leaves a race where the path could be replaced
+    with a no-writer FIFO between that check and a subsequent blocking open,
+    hanging this worker indefinitely; a non-blocking open of a FIFO never
+    blocks on the absence of a writer, so this cannot hang regardless of
+    what the path is retargeted to (mirroring the pcap validation path's
+    same fix).
     """
 
-    if not manifest_path.is_file():
+    try:
+        raw_fd = os.open(manifest_path, os.O_RDONLY | os.O_NONBLOCK)
+    except OSError:
         print(
             f"worker_manifest_error: manifest_not_regular_file: {manifest_path}",
             file=sys.stderr,
         )
         return 1
-    with manifest_path.open("rb") as handle:
+    with os.fdopen(raw_fd, "rb") as handle:
+        if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+            print(
+                f"worker_manifest_error: manifest_not_regular_file: {manifest_path}",
+                file=sys.stderr,
+            )
+            return 1
         raw_manifest = handle.read(_MAX_WORKER_MANIFEST_BYTES + 1)
     if len(raw_manifest) > _MAX_WORKER_MANIFEST_BYTES:
         print(

@@ -127,8 +127,10 @@ def test_run_worker_rejects_a_non_regular_manifest_path(
     stat().st_size -- commonly 0 -- while still supplying unbounded or
     blocking bytes on read, so it must be rejected before any read is
     attempted at all. The FIFO here has no writer, so the test would hang
-    if the implementation ever tried to open/read it instead of rejecting
-    it on the is_file() check alone."""
+    if the implementation ever tried a *blocking* open of it; the
+    implementation instead opens with O_NONBLOCK (which cannot block on a
+    FIFO with no writer) and rejects the descriptor via fstat before any
+    read is attempted."""
 
     manifest_path = tmp_path / "manifest_fifo"
     os.mkfifo(manifest_path)
