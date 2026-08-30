@@ -235,17 +235,21 @@ def test_validate_pcap_matches_generated_fixture_rejects_same_size_wrong_content
 
 
 def test_validate_pcap_matches_generated_fixture_rejects_a_missing_file(tmp_path: Path) -> None:
-    with pytest.raises(UnvalidatedPcapError, match="not a regular file"):
+    with pytest.raises(UnvalidatedPcapError, match="cannot open"):
         _validate_pcap_matches_generated_fixture(
             tmp_path / "does_not_exist.pcap", tmp_path / "validated.pcap"
         )
 
 
-def test_validate_pcap_matches_generated_fixture_rejects_a_fifo_without_opening_it(
+def test_validate_pcap_matches_generated_fixture_rejects_a_fifo_without_blocking(
     tmp_path: Path,
 ) -> None:
-    """A FIFO with no writer must be rejected by the is_file() pre-check alone
-    -- never opened -- or this test would hang."""
+    """A FIFO with no writer must be rejected without blocking the caller.
+
+    The candidate is opened with O_NONBLOCK specifically so a FIFO with no
+    writer cannot hang this call; a plain blocking open() here would hang
+    (and this test would time out) if the non-blocking open were removed.
+    fstat on the resulting descriptor then rejects it as non-regular."""
 
     pcap_path = tmp_path / "sustained_load.pcap"
     os.mkfifo(pcap_path)

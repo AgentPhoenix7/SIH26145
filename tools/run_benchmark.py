@@ -160,13 +160,22 @@ def _validate_pcap_matches_generated_fixture(pcap_path: Path, dest_path: Path) -
     (or block forever) despite the claimed fixed input bound. Instead, the
     candidate is opened once, that open descriptor's own ``fstat`` rejects
     anything that isn't a regular file (closing the specific "size lies,
-    e.g. reports 0" failure mode of special files -- a plain, non-race FIFO
-    supplied directly is separately rejected by an ``is_file()`` pre-check,
-    which never opens the path and so cannot itself block on a FIFO with no
-    writer), and the read loop stops after at most ``expected_size + 1``
-    bytes regardless of what the file claims or how large it grows, so
-    hashing/copying more than one byte past the expected size is
-    structurally impossible.
+    e.g. reports 0" failure mode of special files), and the read loop stops
+    after at most ``expected_size + 1`` bytes regardless of what the file
+    claims or how large it grows, so hashing/copying more than one byte past
+    the expected size is structurally impossible.
+
+    The open itself is non-blocking (``O_NONBLOCK``), not a plain
+    ``Path.open("rb")``. An ``is_file()`` pre-check alone still leaves a
+    race: the path could be replaced with a FIFO that has no writer between
+    that check and a subsequent blocking open, hanging this function
+    indefinitely before ``fstat`` or the bounded read ever runs. Opening
+    with ``O_NONBLOCK`` returns immediately even for such a FIFO (per
+    POSIX, a non-blocking open of a FIFO for reading never blocks on the
+    absence of a writer); the immediately following ``fstat`` then rejects
+    it as non-regular before any read is attempted. ``O_NONBLOCK`` has no
+    effect on the subsequent bounded reads of an actual regular file, so
+    validation of a genuine PCAP is unaffected.
 
     Every chunk read from ``pcap_path`` while computing that digest is also
     written to ``dest_path``, so ``dest_path`` ends up holding exactly the
@@ -188,18 +197,15 @@ def _validate_pcap_matches_generated_fixture(pcap_path: Path, dest_path: Path) -
     expected_size: int = info["pcap_size"]
     expected_sha256: str = info["pcap_sha256"]
 
-    if not pcap_path.is_file():
-        raise UnvalidatedPcapError(f"{pcap_path} is not a regular file")
-
     try:
-        source = pcap_path.open("rb")
+        raw_fd = os.open(pcap_path, os.O_RDONLY | os.O_NONBLOCK)
     except OSError as exc:
         raise UnvalidatedPcapError(f"cannot open {pcap_path}: {exc}") from exc
 
     digest = hashlib.sha256()
     total_read = 0
     read_limit = expected_size + 1
-    with source, dest_path.open("wb") as dest:
+    with os.fdopen(raw_fd, "rb") as source, dest_path.open("wb") as dest:
         try:
             descriptor_mode = os.fstat(source.fileno()).st_mode
         except OSError as exc:

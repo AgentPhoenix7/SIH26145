@@ -593,7 +593,7 @@ Read-only ingest:             VERIFIED for deterministic PCAP replay
 Active probing/return path:   ABSENT and verified for the current path
 Payload decryption:           ABSENT and verified for SYN and DNS/DGA paths
 Streaming processing:         VERIFIED; all three class callbacks precede EOS
-Bounded alert latency:        VERIFIED; P50/P95/P99 measured over 51 alert samples/run, ~0.7-1.5 ms across a predefined unselected 5-run batch (median P95/P99 ~1.0-1.0 ms; see docs/evaluation.md)
+Bounded alert latency:        PARTIALLY MEASURED; post-validation detector-to-emission P50/P95/P99 measured over 51 alert samples/run, ~0.7-1.5 ms across a predefined unselected 5-run batch (median P95/P99 ~1.0-1.0 ms), excludes the raw-record read/parse/validation `run_command` already performs before the timer starts, so this is not the full record-availability-to-alert-availability bound; see docs/evaluation.md
 Alert schema/evidence:        VERIFIED with actual strict PORT_SCAN, SYN_FLOOD, and DGA records
 Dataset research/provenance:  Source licences/hashes/revision and fixture provenance VERIFIED
 ML model trained:             VERIFIED for dga_logreg_v1 with grouped held-out evaluation
