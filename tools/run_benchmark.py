@@ -644,18 +644,30 @@ def _run_worker(pcap_path: Path, manifest_path: Path) -> int:
     lists without bound. The manifest file itself is size-bounded before it
     is read or parsed, for the same reason: an oversized ``--worker-manifest``
     argument must not be able to exhaust memory in ``read_text``/``json.loads``
-    before that per-event cap ever gets a chance to run.
+    before that per-event cap ever gets a chance to run. That bound is
+    enforced by reading at most one byte over the limit, not by trusting
+    ``stat().st_size`` -- a non-regular path (a FIFO, a character device such
+    as ``/dev/zero``, ...) can report a misleading size (commonly ``0``)
+    while still supplying unbounded or blocking bytes on read, so non-regular
+    manifest paths are rejected outright before any read is attempted.
     """
 
-    manifest_size = manifest_path.stat().st_size
-    if manifest_size > _MAX_WORKER_MANIFEST_BYTES:
+    if not manifest_path.is_file():
         print(
-            "worker_manifest_error: manifest_too_large: "
-            f"{manifest_size} bytes exceeds {_MAX_WORKER_MANIFEST_BYTES} byte limit",
+            f"worker_manifest_error: manifest_not_regular_file: {manifest_path}",
             file=sys.stderr,
         )
         return 1
-    manifest = json.loads(manifest_path.read_text())
+    with manifest_path.open("rb") as handle:
+        raw_manifest = handle.read(_MAX_WORKER_MANIFEST_BYTES + 1)
+    if len(raw_manifest) > _MAX_WORKER_MANIFEST_BYTES:
+        print(
+            "worker_manifest_error: manifest_too_large: "
+            f"exceeds {_MAX_WORKER_MANIFEST_BYTES} byte limit",
+            file=sys.stderr,
+        )
+        return 1
+    manifest = json.loads(raw_manifest.decode("utf-8"))
     try:
         report = _measure_replay(pcap_path, manifest)
     except UnexpectedReplayResultError as exc:

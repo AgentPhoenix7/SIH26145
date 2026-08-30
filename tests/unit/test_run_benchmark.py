@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -118,6 +119,26 @@ def test_timing_pipeline_enforces_a_hard_event_cap_regardless_of_manifest_trust(
     assert len(samples) == 2
 
 
+def test_run_worker_rejects_a_non_regular_manifest_path(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A non-regular path (here, a FIFO) can report a misleading
+    stat().st_size -- commonly 0 -- while still supplying unbounded or
+    blocking bytes on read, so it must be rejected before any read is
+    attempted at all. The FIFO here has no writer, so the test would hang
+    if the implementation ever tried to open/read it instead of rejecting
+    it on the is_file() check alone."""
+
+    manifest_path = tmp_path / "manifest_fifo"
+    os.mkfifo(manifest_path)
+
+    exit_code = _run_worker(tmp_path / "unused.pcap", manifest_path)
+
+    assert exit_code == 1
+    assert "worker_manifest_error: manifest_not_regular_file" in capsys.readouterr().err
+
+
 def test_run_worker_rejects_an_oversized_manifest_before_reading_it(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -126,10 +147,12 @@ def test_run_worker_rejects_an_oversized_manifest_before_reading_it(
     """A direct --worker-manifest invocation trusts its manifest without
     re-deriving it from the generator (see the module docstring), so an
     oversized manifest file must be rejected by its size alone, before
-    read_text()/json.loads() ever materializes its content -- proven here by
-    writing content that is not valid JSON: if the size bound were not
-    checked first, this would fail with a JSONDecodeError instead of the
-    named diagnostic below."""
+    json.loads() ever materializes its content -- proven here by writing
+    content that is not valid JSON: if the size bound were not checked
+    first, this would fail with a JSONDecodeError instead of the named
+    diagnostic below. The bound is enforced by reading at most
+    _MAX_WORKER_MANIFEST_BYTES + 1 bytes, not by trusting stat().st_size
+    (see test_run_worker_rejects_a_non_regular_manifest_path for why)."""
 
     monkeypatch.setattr(run_benchmark_module, "_MAX_WORKER_MANIFEST_BYTES", 10)
     manifest_path = tmp_path / "manifest.json"
