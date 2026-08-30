@@ -235,10 +235,39 @@ def test_validate_pcap_matches_generated_fixture_rejects_same_size_wrong_content
 
 
 def test_validate_pcap_matches_generated_fixture_rejects_a_missing_file(tmp_path: Path) -> None:
-    with pytest.raises(UnvalidatedPcapError, match="cannot stat"):
+    with pytest.raises(UnvalidatedPcapError, match="not a regular file"):
         _validate_pcap_matches_generated_fixture(
             tmp_path / "does_not_exist.pcap", tmp_path / "validated.pcap"
         )
+
+
+def test_validate_pcap_matches_generated_fixture_rejects_a_fifo_without_opening_it(
+    tmp_path: Path,
+) -> None:
+    """A FIFO with no writer must be rejected by the is_file() pre-check alone
+    -- never opened -- or this test would hang."""
+
+    pcap_path = tmp_path / "sustained_load.pcap"
+    os.mkfifo(pcap_path)
+
+    with pytest.raises(UnvalidatedPcapError, match="not a regular file"):
+        _validate_pcap_matches_generated_fixture(pcap_path, tmp_path / "validated.pcap")
+
+
+def test_validate_pcap_matches_generated_fixture_never_reads_past_expected_size_plus_one(
+    tmp_path: Path,
+) -> None:
+    """The read loop must stop after at most expected_size + 1 bytes, no
+    matter how large the underlying file actually is -- proven here with a
+    file far larger than any plausible fixture, which would take
+    unreasonably long to fully hash/copy if the bound didn't hold."""
+
+    expected_size = len(_benchmark_artifacts()["sustained_load.pcap"])
+    pcap_path = tmp_path / "sustained_load.pcap"
+    pcap_path.write_bytes(b"\x00" * (expected_size * 5))
+
+    with pytest.raises(UnvalidatedPcapError, match="bytes"):
+        _validate_pcap_matches_generated_fixture(pcap_path, tmp_path / "validated.pcap")
 
 
 def test_run_benchmark_does_not_import_the_generator_object_graph_in_process() -> None:

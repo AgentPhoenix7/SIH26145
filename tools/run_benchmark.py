@@ -20,9 +20,17 @@ Two latency samples are reported:
   is actually used, rather than ``os.devnull``'s always-instant sink.
   Because ``run_command`` calls the emit callback immediately after
   ``process`` returns for the causing event, and processes one event fully
-  (including all of its emits) before reading the next line, this is the
-  actual time from event acceptance to alert availability, not detector
-  time alone.
+  (including all of its emits) before reading the next line, this covers
+  everything from the start of detector work through actual alert
+  emission -- but it is **not** the full event-acceptance-to-alert-
+  availability interval: ``run_command`` (the frozen, unmodified replay
+  path this benchmark deliberately does not alter) has already read the
+  raw JSONL line and completed ``_parse_record``'s JSON decode and
+  Pydantic contract validation before this timer starts, so "alert
+  latency" here is post-validation detector-to-emission latency, not
+  end-to-end from raw record availability. On inputs where line-read or
+  parse/validation cost is material, add that separately measured cost
+  before treating this as a full operational bound.
 
 CPU time and peak resident set size are read from ``resource.getrusage``
 separately for the process actually performing the replay (``RUSAGE_SELF``)
@@ -73,6 +81,7 @@ import json
 import os
 import platform
 import resource
+import stat
 import subprocess
 import sys
 import tempfile
@@ -143,10 +152,21 @@ def _validate_pcap_matches_generated_fixture(pcap_path: Path, dest_path: Path) -
 
     Trust is anchored to the deterministic generator's own current output,
     not a co-located manifest file the caller could fabricate to match an
-    arbitrary large capture. The candidate's size is checked with a cheap
-    ``stat`` before any of its bytes are read, and its digest is computed by
-    streaming fixed-size chunks rather than loading the whole file at once,
-    so this cannot be used to load an arbitrarily large file into memory.
+    arbitrary large capture. This does not use a preliminary ``stat()`` size
+    check followed by a separate, unbounded read loop: a pathname could be
+    replaced, retargeted, or appended between that check and the read that
+    follows it, so a growing regular file, or a FIFO/character device
+    swapped in afterward, could make an unbounded loop copy/hash until EOF
+    (or block forever) despite the claimed fixed input bound. Instead, the
+    candidate is opened once, that open descriptor's own ``fstat`` rejects
+    anything that isn't a regular file (closing the specific "size lies,
+    e.g. reports 0" failure mode of special files -- a plain, non-race FIFO
+    supplied directly is separately rejected by an ``is_file()`` pre-check,
+    which never opens the path and so cannot itself block on a FIFO with no
+    writer), and the read loop stops after at most ``expected_size + 1``
+    bytes regardless of what the file claims or how large it grows, so
+    hashing/copying more than one byte past the expected size is
+    structurally impossible.
 
     Every chunk read from ``pcap_path`` while computing that digest is also
     written to ``dest_path``, so ``dest_path`` ends up holding exactly the
@@ -168,22 +188,40 @@ def _validate_pcap_matches_generated_fixture(pcap_path: Path, dest_path: Path) -
     expected_size: int = info["pcap_size"]
     expected_sha256: str = info["pcap_sha256"]
 
+    if not pcap_path.is_file():
+        raise UnvalidatedPcapError(f"{pcap_path} is not a regular file")
+
     try:
-        actual_size = pcap_path.stat().st_size
+        source = pcap_path.open("rb")
     except OSError as exc:
-        raise UnvalidatedPcapError(f"cannot stat {pcap_path}: {exc}") from exc
-    if actual_size != expected_size:
-        raise UnvalidatedPcapError(
-            f"{pcap_path} is {actual_size} bytes; tools.generate_benchmark_fixture "
-            f"currently produces exactly {expected_size} bytes. Regenerate it with "
-            "tools/generate_benchmark_fixture.py."
-        )
+        raise UnvalidatedPcapError(f"cannot open {pcap_path}: {exc}") from exc
 
     digest = hashlib.sha256()
-    with pcap_path.open("rb") as source, dest_path.open("wb") as dest:
-        for chunk in iter(lambda: source.read(_READ_CHUNK_BYTES), b""):
+    total_read = 0
+    read_limit = expected_size + 1
+    with source, dest_path.open("wb") as dest:
+        try:
+            descriptor_mode = os.fstat(source.fileno()).st_mode
+        except OSError as exc:
+            raise UnvalidatedPcapError(f"cannot stat {pcap_path}: {exc}") from exc
+        if not stat.S_ISREG(descriptor_mode):
+            raise UnvalidatedPcapError(f"{pcap_path} is not a regular file")
+
+        while total_read < read_limit:
+            chunk = source.read(min(_READ_CHUNK_BYTES, read_limit - total_read))
+            if not chunk:
+                break
+            total_read += len(chunk)
             digest.update(chunk)
             dest.write(chunk)
+
+    if total_read != expected_size:
+        raise UnvalidatedPcapError(
+            f"{pcap_path} is {'more than ' if total_read >= read_limit else ''}"
+            f"{total_read} bytes; tools.generate_benchmark_fixture currently "
+            f"produces exactly {expected_size} bytes. Regenerate it with "
+            "tools/generate_benchmark_fixture.py."
+        )
     if digest.hexdigest() != expected_sha256:
         raise UnvalidatedPcapError(
             f"{pcap_path} does not match the bytes tools.generate_benchmark_fixture "
@@ -242,8 +280,11 @@ class TimingPipeline(DetectionPipeline):
     the same way frozen dataclasses are normally extended.
 
     ``_clock.pending_start`` is set to this call's start time so the emit
-    callback constructed by ``_make_emit_alert`` below can measure the full
-    event-acceptance-to-alert-availability interval, not detector time alone.
+    callback constructed by ``_make_emit_alert`` below can measure the
+    detector-to-emission interval, not detector time alone -- this call's
+    start is already after ``run_command`` has read and parsed/validated
+    the record (see the module docstring), so it is post-validation
+    latency, not the full event-acceptance-to-alert-availability interval.
     """
 
     _samples: list[EventSample]
