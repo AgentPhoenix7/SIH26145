@@ -1,14 +1,14 @@
-# Streaming SYN and DNS/DGA Detection Architecture
+# Streaming Detection and Local Dashboard Architecture
 
-Status: **implemented for Milestone 1 port scan, Milestone 2 SYN flood, and Milestone 3 DNS/DGA replay**
+Status: **implemented for Milestones 1–4: port scan, SYN flood, DNS/DGA replay, and local dashboard**
 
 Designed: **2026-08-26**
 
-Last verified: **2026-08-29**
+Last verified: **2026-08-30**
 
 ## Objective
 
-Milestones 1 through 3 share one passive streaming path:
+Milestones 1 through 4 share one passive streaming path:
 
 ```text
 deterministic PCAP replay
@@ -20,9 +20,12 @@ deterministic PCAP replay
      -> bounded per-target SYN-flood window
      -> stateless local DGA Logistic Regression
   -> validated PORT_SCAN / SYN_FLOOD / DGA alerts
+  -> bounded in-memory alert store
+  -> loopback API
+  -> same-origin static dashboard
 ```
 
-It demonstrates passive ingest, incremental processing, bounded state or bounded per-record ML work, and standardized evidence for port scans, SYN floods, and DGA-like DNS queries. UDP reflection/amplification, DNS tunnelling, the remaining three named classes, API, and dashboard do not exist.
+It demonstrates passive ingest, incremental processing, bounded state or bounded per-record ML work, standardized evidence for port scans, SYN floods, and DGA-like DNS queries, and actual replayed alerts on a local dashboard. UDP reflection/amplification, DNS tunnelling, and the remaining three named classes do not exist.
 
 ## Decision and Alternatives
 
@@ -59,8 +62,22 @@ The verified implementation preserves the six clarifications approved before cod
 | DGA model loader | Packaged metadata/artifact integrity, compatibility, sklearn pipeline shape, and local probability inference | Network retrieval, observed-domain lookup, or detection policy |
 | DGA detector | Stateless threshold decision, severity, and measured lexical/model evidence for one DNS event | DNS parsing, rolling state, enrichment, or network access |
 | Alert schema | Common output validation and detector-specific typed evidence | Detector state |
+| Runtime factory | Construction of the existing three-detector pipeline for CLI and API callers | A second detector or replay implementation |
+| Alert store | Strict validation, thread-safe bounded retention, oldest-first eviction, and newest-first snapshots | Persistence, detector logic, or unbounded history |
+| Local API | Loopback serving, fixed fixture selection, replay serialization, callback-to-store wiring, and fixed safe errors | Arbitrary paths, executable selection, observed-host access, or detector duplication |
+| Static dashboard | Same-origin controls, bounded polling/rendering, honest coverage, and actual alert/evidence presentation | Alert synthesis, remote assets, production SOC workflows, or unsupported coverage claims |
 
 The pipeline is one concrete in-process composition, not a plugin system or service boundary. The replay runner accepts the historical scan-only detector for frozen regression tests or the three-detector pipeline used by the public CLI.
+
+## Milestone 4 Local API and Dashboard
+
+`AlertStore` validates each `AlertV1` before mutation and keeps a locked `deque(maxlen=100)`. Existing model instances are serialized and revalidated through the strict JSON contract so pre-insertion mutation cannot bypass validation; accepted records are then deep-copied to break caller references. Appending at capacity deterministically evicts the oldest record. Snapshots are newest-first, return deep copies, and reject limits outside `1..capacity`; the public route defaults to 50.
+
+`POST /api/replays/{fixture_id}` accepts one enum drawn from seven committed alert/comparison fixtures. It also requires the fixed non-safelisted `X-SIH26145-Action: run-approved-fixture` header; same-origin JavaScript sends it, while an ordinary cross-origin webpage cannot issue the action without a CORS preflight that the server does not allow. Trusted-host validation accepts only `127.0.0.1`, closing the DNS-rebinding hostname path, and any supplied browser `Origin` must equal `http://127.0.0.1:8000`. The server resolves the fixed relative path beneath the configured repository root, requires a regular file, constructs the existing three-detector pipeline, and passes `AlertStore.add` as the existing replay callback. It never accepts a path, command, executable, observed host, or observed domain from the caller. One fixed replay runs synchronously at a time. `GET /api/alerts` returns unchanged strict alerts plus bounded count/capacity metadata.
+
+`sih26145-dashboard` binds Uvicorn to `127.0.0.1:8000`. Three small trusted package assets are loaded once and returned by async routes without AnyIO threadpool file work, which avoids the managed Python 3.13 thread-handoff defect observed during regression testing. The browser uses non-overlapping three-second `setTimeout` polling, pauses during replay, requests at most 50 alerts, and builds every alert-derived node with `textContent`. There is no frontend dependency, build step, remote resource, WebSocket, database, or persistent storage.
+
+The API is intentionally a single-process local demonstration. Restarting clears alerts, and a synchronous fixture replay temporarily blocks that one event loop while the dashboard waits. This is documented deadline-scoped behavior, not a production concurrency or durability claim.
 
 ## Milestone 2 SYN-Flood Extension
 
@@ -297,7 +314,7 @@ The entire path is local and read-only with respect to observed traffic:
 - The runner starts only the configured local `zeek` executable with explicit arguments.
 - There is no probing, handshake completion, packet injection, blocking, mitigation, network callback to an observed host, payload decryption, or Internet inference.
 
-Later API and dashboard work may open a loopback service for local display, but that is outside this milestone and never creates a return path to observed hosts.
+The local API opens only a loopback display service. Its only replay inputs are code-owned fixture identifiers, and observed hosts/domains never become network destinations, so it does not create a return path to monitored systems.
 
 ## Deterministic Fixtures and Provenance
 
@@ -347,6 +364,7 @@ Known limitations of this slice are explicit:
 - Strict timestamp ordering rejects merged or malformed captures with time regressions instead of reordering them.
 - Failing on state pressure preserves bounded memory and result integrity but stops the current prototype run; a measured live deployment will need a bounded degradation policy and health telemetry.
 - Zeek UID deduplication handles TCP SYN retransmissions within one Zeek run; it is not a durable identity across separate replays.
+- The API/store/dashboard are local, process-only, unauthenticated, and non-persistent; one synchronous fixture replay temporarily pauses same-origin polling.
 - No throughput or latency claim exists until measured on the documented hardware.
 
 The user approved the Milestone 1 design at `docs/superpowers/plans/2026-08-26-milestone-1-streaming-port-scan.md` and approved the deadline-scoped Milestone 2 plan recorded in `PROGRESS.md`. Each implementation was completed test-first in its dedicated branch/worktree and verified on 2026-08-28 with native Zeek replay, focused and full tests, Ruff, mypy, deterministic fixture checks, and actual alert-schema validation.

@@ -1,6 +1,6 @@
 # MVP Limitations
 
-Last verified: **2026-08-29 (UTC)**
+Last verified: **2026-08-30 (UTC)**
 
 - Demonstrated coverage is 3/6 named classes: port scanning, the SYN-flood subset of DDoS, and DGA lexical detection. UDP reflection/amplification, stronger spoofing inference, DNS tunnelling, C2 beaconing, encrypted-session malware metadata, and data exfiltration are not implemented.
 - The DGA model's held-out recall is `0.2513` and false-positive rate is `0.0722` on a controlled source mixture. It is not suitable for autonomous blocking or a production verdict. The passive MVP only emits intelligence and never blocks traffic.
@@ -12,4 +12,7 @@ Last verified: **2026-08-29 (UTC)**
 - Hard state and process limits preserve bounded memory and evidence integrity by stopping the current run with a named failure. No production degradation policy or health telemetry exists.
 - Native fixtures are IPv4. Strict contracts and SYN detector state have IPv6 unit coverage, but native IPv6 replay is not demonstrated.
 - The measured `2.34` microseconds/domain figure is batch model inference only. End-to-end flows/second or Mbps, alert-latency percentiles, CPU, and memory remain unmeasured.
-- No local API, bounded alert store, dashboard, end-to-end presentation demo, screenshot set, or PPT deck exists yet.
+- The API is a loopback-only, unauthenticated local demo service, not a remote or multi-user deployment. It accepts only the `127.0.0.1` Host, rejects any supplied browser Origin other than `http://127.0.0.1:8000`, exposes only fixed committed fixture identifiers, and requires a non-safelisted action header. It must be launched from the repository root so those fixtures resolve.
+- Alert storage is process-local and non-persistent. It retains at most 100 strict alerts, evicts the oldest first, and is cleared on server restart; the dashboard requests and renders at most 50 newest-first rows.
+- A fixed fixture replay runs synchronously in the single local server event loop. Dashboard polling deliberately pauses until it completes. This keeps the MVP small but is not a production concurrency design.
+- Actual empty and three-alert dashboard screenshots exist, but no final PPT deck or end-to-end throughput/latency evidence exists yet.

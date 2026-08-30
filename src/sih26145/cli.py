@@ -10,13 +10,12 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from sih26145.contracts.alerts import AlertV1
-from sih26145.detection.dga import DgaDetector
-from sih26145.detection.pipeline import DetectionPipeline
 from sih26145.detection.port_scan import PortScanDetector, ScanConfig
 from sih26145.detection.scan_window import StateLimitExceeded
 from sih26145.detection.syn_flood import SynFloodConfig, SynFloodDetector
-from sih26145.ml.dga_model import DgaModel, DgaModelError
+from sih26145.ml.dga_model import DgaModelError
 from sih26145.replay import ReplayError, run_replay
+from sih26145.runtime import build_detection_pipeline
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -146,7 +145,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
     try:
-        dga_detector = DgaDetector(model=DgaModel.load_packaged())
+        detector_pipeline = build_detection_pipeline(
+            port_scan=detector,
+            syn_flood=syn_flood_detector,
+        )
     except DgaModelError:
         print(
             "configuration_error: invalid_dga_model",
@@ -154,12 +156,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             flush=True,
         )
         return 2
-
-    detector_pipeline = DetectionPipeline(
-        port_scan=detector,
-        syn_flood=syn_flood_detector,
-        dga=dga_detector,
-    )
 
     try:
         run_replay(args.pcap, detector_pipeline, emit_alert)

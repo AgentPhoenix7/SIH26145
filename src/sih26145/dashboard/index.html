@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>SIH26145 Local Detection Dashboard</title>
+    <link rel="stylesheet" href="/assets/dashboard.css">
+    <script src="/assets/dashboard.js" defer></script>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">SIH26145 · Passive replay prototype</p>
+          <h1>Local Detection Dashboard</h1>
+          <p class="lede">
+            Actual <code>alert_v1</code> records from approved deterministic PCAP replays.
+            No live capture, mitigation, or production-readiness claim.
+          </p>
+        </div>
+        <div id="api-status" class="status-badge status-loading" role="status">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span>Connecting</span>
+        </div>
+      </header>
+
+      <section class="card replay-card" aria-labelledby="replay-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Controlled demo input</p>
+            <h2 id="replay-title">Run an approved fixture</h2>
+          </div>
+          <p>One local replay at a time. Selections cannot reference arbitrary files.</p>
+        </div>
+        <form id="replay-form" class="replay-form">
+          <label for="fixture-select">Deterministic fixture</label>
+          <div class="control-row">
+            <select id="fixture-select" name="fixture" required>
+              <optgroup label="Expected alert">
+                <option value="port-scan-alert">Port scan · at threshold</option>
+                <option value="syn-flood-alert">SYN flood · at threshold</option>
+                <option value="dga-alert">DGA DNS · suspicious query</option>
+              </optgroup>
+              <optgroup label="Expected no alert">
+                <option value="port-scan-benign">Port scan · benign</option>
+                <option value="syn-flood-below">SYN flood · below threshold</option>
+                <option value="syn-flood-benign">SYN flood · benign distributed</option>
+                <option value="dga-benign">DGA DNS · benign query</option>
+              </optgroup>
+            </select>
+            <button id="run-replay" type="submit">Run local replay</button>
+          </div>
+        </form>
+        <p id="operation-status" class="operation-status" aria-live="polite">
+          Ready to run an approved fixture.
+        </p>
+      </section>
+
+      <section class="coverage-grid" aria-label="Threat coverage">
+        <article class="card coverage-card coverage-verified">
+          <div class="section-heading compact">
+            <div>
+              <p class="eyebrow">Verified MVP path</p>
+              <h2>Implemented coverage</h2>
+            </div>
+            <span class="scope-label scope-verified">VERIFIED</span>
+          </div>
+          <ul class="coverage-list">
+            <li><code>PORT_SCAN</code><span>Streaming fan-out rule</span></li>
+            <li><code>SYN_FLOOD</code><span>Destination-centric streaming rule</span></li>
+            <li><code>DGA</code><span>Offline Logistic Regression inference</span></li>
+          </ul>
+        </article>
+
+        <article class="card coverage-card">
+          <div class="section-heading compact">
+            <div>
+              <p class="eyebrow">Honest scope boundary</p>
+              <h2>Unimplemented coverage</h2>
+            </div>
+          </div>
+          <ul class="coverage-list deferred-list">
+            <li><span>UDP reflection/amplification</span><b>NOT IMPLEMENTED</b></li>
+            <li><span>DNS tunnelling</span><b>NOT IMPLEMENTED</b></li>
+            <li><span>C2 beaconing</span><b>DEFERRED</b></li>
+            <li><span>TLS/QUIC malware metadata</span><b>DEFERRED</b></li>
+            <li><span>Data exfiltration</span><b>DEFERRED</b></li>
+          </ul>
+        </article>
+      </section>
+
+      <section class="card alerts-panel" aria-labelledby="alerts-title">
+        <div class="section-heading alerts-heading">
+          <div>
+            <p class="eyebrow">Newest first · maximum 50 rows</p>
+            <h2 id="alerts-title">Measured alert evidence</h2>
+          </div>
+          <p id="alert-count" class="alert-count">0 shown · 0 stored · capacity 100</p>
+        </div>
+        <div id="alert-state" class="alert-state" aria-live="polite">
+          Loading local alerts…
+        </div>
+        <div id="alert-list" class="alert-list" aria-label="Stored alerts"></div>
+      </section>
+    </main>
+  </body>
+</html>
