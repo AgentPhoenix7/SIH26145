@@ -5,8 +5,13 @@ Last updated: **2026-08-30 (UTC)**, post-Milestone-5-merge handoff refresh
 ## Current Handoff State
 
 - **Date:** 2026-08-30 (UTC). The deadline was extended by explicit user instruction on 2026-08-30: MVP/PPT deadline is now **2026-09-01** (was 2026-08-31), feature freeze is now **2026-08-31** (was 2026-08-30). All Tier-1 milestones (1–5) are already merged and frozen on `main`; no milestone implementation is in progress, and the extension does not by itself reopen any frozen milestone.
-- **Current branch:** `main` (working tree clean, matches `origin/main` at `ad83ec7`)
-- **Active milestone branch/worktree:** none. `.worktrees/` is empty; every milestone feature branch has been deleted after merge. Do not resume work in `feature/milestone-5-benchmark` or `.worktrees/milestone-5-benchmark` — both are gone.
+- **Current branch:** `feature/milestone-6-data-exfiltration` (this worktree); `main` remains at `b6c4274` (working tree clean, matches `origin/main`).
+- **Current milestone:** Milestone 6 — Tier 2 data exfiltration detection (asymmetric outbound/inbound volume ratios plus host/destination baselines, per `docs/problem.md` class f and `AGENTS.md`'s Hybrid Detection and ML Rules). **PLANNED**; branch/worktree created and baseline-verified, no implementation yet.
+- **Milestone 6 base commit:** `b6c4274afbaf78d30fb2efd12b63405371a50ac1` (`fix: update MVP deadline to 2026-09-01 and adjust feature freeze date; revise progress documentation`, on `main`)
+- **Milestone 6 branch:** `feature/milestone-6-data-exfiltration`
+- **Milestone 6 worktree:** `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-6-data-exfiltration`
+- **Milestone 6 baseline verification (2026-08-30):** frozen `uv sync --frozen --group dev` succeeded; `379 passed in 40.87s`; Ruff lint passed; Ruff confirmed 73 files formatted; strict mypy found no issues in 57 source files; all three deterministic fixture checks (`generate_milestone{1,2,3}_fixtures.py --check`) exited `0`.
+- Milestones 1–5 remain merged and frozen on `main`; do not resume work in the deleted `feature/milestone-5-benchmark` branch or `.worktrees/milestone-5-benchmark` worktree — both are gone.
 - **Milestone 5 base commit:** `d8f3fdb` (`docs: record milestone four merge in progress handoff`, on `main`)
 - **Milestone 5 baseline verification (2026-08-30):** frozen `uv sync --frozen --group dev` succeeded; `347 passed in 20.09s`; Ruff lint passed; Ruff confirmed 69 files formatted; strict mypy found no issues in 53 source files; all three deterministic fixture checks exited `0`.
 - **Milestone 5 merged pull request:** `https://github.com/AgentPhoenix7/SIH26145/pull/5`, merge commit `ad83ec708823ebc8380ecba67582fe534a229519`, merged 2026-08-30T19:31:00Z. Its branch/worktree were deleted after merge.
@@ -57,7 +62,8 @@ Last updated: **2026-08-30 (UTC)**, post-Milestone-5-merge handoff refresh
 
 ### In Progress
 
-- None. Milestones 1–5 are all merged and frozen on `main`. PR #5 (`https://github.com/AgentPhoenix7/SIH26145/pull/5`) merged at `ad83ec708823ebc8380ecba67582fe534a229519` on 2026-08-30T19:31:00Z after 21 review-driven fix/docs commits on the feature branch (the last three — `462fc3a`, `4dee1da`, `b6d286c` — bounded the pcap validation read stream, made both the pcap-validation and `--worker-manifest` opens non-blocking against a FIFO-swap TOCTOU, and relabeled README/requirements-traceability alert-latency claims as post-validation detector-to-emission latency rather than full event-acceptance-to-alert-availability latency). Its branch and worktree were deleted after merge. PR #4 previously merged into `main` at `44c51d88da7d9d1abb574da3775e06832cf5846a` on 2026-08-30T12:31:46Z; Milestone 4 is frozen. `main` also carries one earlier post-merge documentation commit, `7a7e870` (`CLAUDE.md` added as a symlink to `AGENTS.md`).
+- Milestone 6 (this worktree, `feature/milestone-6-data-exfiltration`, base `b6c4274`): Tier 2 data exfiltration detection. Branch/worktree created and baseline-verified (`379 passed`, Ruff, strict mypy, all three fixture checks) on 2026-08-30; design/implementation not yet started, pending plan approval.
+- Milestones 1–5 are all merged and frozen on `main`. PR #5 (`https://github.com/AgentPhoenix7/SIH26145/pull/5`) merged at `ad83ec708823ebc8380ecba67582fe534a229519` on 2026-08-30T19:31:00Z after 21 review-driven fix/docs commits on the feature branch (the last three — `462fc3a`, `4dee1da`, `b6d286c` — bounded the pcap validation read stream, made both the pcap-validation and `--worker-manifest` opens non-blocking against a FIFO-swap TOCTOU, and relabeled README/requirements-traceability alert-latency claims as post-validation detector-to-emission latency rather than full event-acceptance-to-alert-availability latency). Its branch and worktree were deleted after merge. PR #4 previously merged into `main` at `44c51d88da7d9d1abb574da3775e06832cf5846a` on 2026-08-30T12:31:46Z; Milestone 4 is frozen. `main` also carries one earlier post-merge documentation commit, `7a7e870` (`CLAUDE.md` added as a symlink to `AGENTS.md`).
 
 ### Known Problems
 
@@ -102,7 +108,7 @@ Last updated: **2026-08-30 (UTC)**, post-Milestone-5-merge handoff refresh
 ### Immediate Next Actions
 
 1. Milestones 1–5 are merged and frozen; do not redesign them without a demonstrated regression.
-2. Every Tier-1 feature-freeze gate item is already complete on `main`. The deadline extension (feature freeze now 2026-08-31, deadline 2026-09-01) opens one additional day before freeze; do not start new milestone work on it without explicit user direction.
+2. Milestone 6 (Tier 2 data exfiltration) is underway on `feature/milestone-6-data-exfiltration` per explicit user direction on 2026-08-30. Design the detector, get plan approval, implement test-first, verify, then review/merge/freeze before the 2026-08-31 feature freeze.
 3. Remaining default work is final submission/PPT rehearsal: fresh end-to-end verification, demo rehearsal, submission-blocking fixes only, screenshots, documentation sync, PPT assembly, and packaging. 2026-09-01 is reserved for that verification/demo/PPT/packaging work only — no new features.
 
 ### Commands to Resume
