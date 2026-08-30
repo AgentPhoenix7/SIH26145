@@ -1,11 +1,14 @@
 # SIH26145 Progress and Conversation Handoff
 
-Last updated: **2026-08-30 (UTC)**
+Last updated: **2026-08-30 (UTC)**, Milestone 5 implementation slice
 
 ## Current Handoff State
 
 - **Date:** 2026-08-30 (UTC)
-- **Current branch:** `main`
+- **Current branch:** `feature/milestone-5-benchmark`
+- **Milestone 5 base commit:** `d8f3fdb` (`docs: record milestone four merge in progress handoff`, on `main`)
+- **Milestone 5 worktree:** `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-5-benchmark`
+- **Milestone 5 baseline verification (2026-08-30):** frozen `uv sync --frozen --group dev` succeeded; `347 passed in 20.09s`; Ruff lint passed; Ruff confirmed 69 files formatted; strict mypy found no issues in 53 source files; all three deterministic fixture checks exited `0`.
 - **Milestone 4 base commit:** `7498634bf2e91a9540197166d876c3e381adee40`
 - **Milestone 4 baseline evidence commit:** `67a78d74d63513affd8a2ac164bbd4d1c505a09a`
 - **Milestone 4 feature commit:** `571c4b1fa13529e659640259aab1475cd05182b3`
@@ -15,9 +18,10 @@ Last updated: **2026-08-30 (UTC)**
 - **Milestone 2 final feature commit:** `7cb1eb513295a844ef8959616631f9f1e8fed531`
 - **Milestone 3 merge commit:** `9fc30e612f4ea5accbd412610b692899b93d4ffc`
 - **Milestone 3 final feature fix:** `d61bec43f6559e6191cb0d64309317844dbcc9a2`
-- **Current milestone:** Milestone 4 — minimal local API, bounded alert storage, and dashboard (**MERGED into `main` at `44c51d88da7d9d1abb574da3775e06832cf5846a` and FROZEN**).
-- **Active milestone branch:** none; `feature/milestone-4-local-api-dashboard` was merged and deleted.
-- **Active milestone worktree:** none; `.worktrees/milestone-4-local-api-dashboard` was removed after merge.
+- **Current milestone:** Milestone 5 — measured end-to-end benchmark (throughput, alert latency, CPU, memory) (**IMPLEMENTED + TESTED**; PR #5 (`https://github.com/AgentPhoenix7/SIH26145/pull/5`) is open as a draft against `main`; review/merge/freeze not yet done).
+- **Active milestone branch:** `feature/milestone-5-benchmark`
+- **Active milestone worktree:** `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-5-benchmark`
+- **Milestone 4:** minimal local API, bounded alert storage, and dashboard (**MERGED into `main` at `44c51d88da7d9d1abb574da3775e06832cf5846a` and FROZEN**); its branch/worktree were deleted after merge.
 - **Milestone 3 base commit:** `95159b6da04f0ee7ae6b61b3befd941842aac9bc`
 - **Milestone 3 review-fix commit:** `9965de5b85d9d3add72ff417f16ad1f9a7875c19`
 - **Milestone 3 merged pull request:** `https://github.com/AgentPhoenix7/SIH26145/pull/3`
@@ -50,16 +54,17 @@ Last updated: **2026-08-30 (UTC)**
 
 ### Implemented but Not Verified
 
-- End-to-end throughput, CPU, memory, and alert-latency benchmark work remains unimplemented and unverified.
+- None outstanding for Milestone 5; the benchmark tooling, fixture, and measured evidence below are implemented and verified by actual command execution. PR #5 is open as a draft; review/merge/freeze is the remaining step.
 
 ### In Progress
 
-- None. PR #4 merged into `main` at `44c51d88da7d9d1abb574da3775e06832cf5846a` on 2026-08-30T12:31:46Z; Milestone 4 is frozen. `main` also carries one post-merge documentation commit, `7a7e870` (`CLAUDE.md` added as a symlink to `AGENTS.md`), and matches `origin/main`.
+- Milestone 5 (this worktree): implementation, tests, and full verification gate complete. PR #5 (`https://github.com/AgentPhoenix7/SIH26145/pull/5`) is open as a draft against `main`; not yet reviewed, merged, or frozen. PR #4 previously merged into `main` at `44c51d88da7d9d1abb574da3775e06832cf5846a` on 2026-08-30T12:31:46Z; Milestone 4 is frozen. `main` also carries one post-merge documentation commit, `7a7e870` (`CLAUDE.md` added as a symlink to `AGENTS.md`).
 
 ### Known Problems
 
-- UDP reflection/amplification, DNS tunnelling, and end-to-end benchmarking are not implemented.
+- UDP reflection/amplification and DNS tunnelling are not implemented.
 - Demonstrated detector coverage spans three of six named classes, but DDoS is limited to SYN floods and DNS coverage to DGA lexical classification; no full-coverage claim is valid.
+- The Milestone 5 benchmark is single-replay, across the Python detector process and its native Zeek child (both measured separately for CPU/RSS), and excludes API/dashboard polling latency; see `docs/evaluation.md` for full scope limitations.
 
 ### Deferred
 
@@ -88,7 +93,7 @@ Last updated: **2026-08-30 (UTC)**
 
 ### Benchmark State
 
-- End-to-end throughput, CPU, memory, and wall-clock alert-latency percentiles are unmeasured. Model-only batch inference measured `2.340909655567489` microseconds/domain (`427184.36297686916` domains/second) and must not be presented as pipeline throughput.
+- Milestone 5 measured end-to-end sustained-replay throughput, alert latency, CPU, and memory: `tools/generate_benchmark_fixture.py` deterministically builds a 21,431-event / 1,507,321-byte PCAP (20,000+ benign background SYN/DNS events, measured directly against the real detectors to stay benign: each source reaches up to 26 rolling-window attempts — above the port-scan minimum — but only 1 unique destination host/port; each destination reaches up to 51 rolling-window events from only 2 unique sources, both below the SYN-flood minimums; see `docs/evaluation.md` for the exact measured numbers and mechanism; plus 10 independent copies each of the verified Milestone 1 port-scan and Milestone 2 SYN-flood exact-threshold patterns, plus the verified Milestone 3 DGA domain and further deterministic candidate domains kept only when the actual packaged model scores them above threshold — 31 qualified); `tools/run_benchmark.py` validates the candidate PCAP and measures the replay in two separate dedicated subprocesses (a PR #5 review finding caught that an earlier revision built the fixture generator's ~21,431-packet object graph in the same process being measured — first before sampling `RUSAGE_SELF`, then, in a first attempted fix, as a reaped child that instead inflated the reported Zeek RSS through `RUSAGE_CHILDREN`'s cross-child high-water mark). The replay-measuring subprocess times the unmodified `DetectionPipeline`/`run_replay` path via a `TimingPipeline` subclass, measures alert latency from the start of detector work through actual JSON serialization and write/flush (mirroring `sih26145.cli.emit_alert`), not detector time alone -- this is post-validation latency, not the full event-acceptance-to-alert-availability interval, since `run_command` (the frozen, unmodified replay path) has already read the raw JSONL line and completed JSON/Pydantic validation before this timer starts -- and measures CPU/peak-RSS separately for itself (`RUSAGE_SELF`) and the native Zeek child it spawns and fully waits for (`RUSAGE_CHILDREN`), not Python alone. A predefined, unselected batch of 5 consecutive runs on WSL2 Linux (16 logical CPUs, Python `3.13.15`, Zeek `8.2.2`) — reported in full, no run selected, reordered, or discarded by its own result — each produced exactly 51 alerts (10 `PORT_SCAN` + 10 `SYN_FLOOD` + 31 `DGA`) and measured, using per-metric medians computed independently across all 5 runs (not one "representative" run and not a hand-picked subset): `12,600`-`16,250` events/sec (`5.5`-`7.1` Mbps computed from actual traffic bytes, not pcap file size, median `~14,800`/`~6.4`), event-processing-latency P50/P95/P99 median `0.020`/`0.033`/`0.406` ms, alert-latency P50/P95/P99 median `0.862`/`1.018`/`1.049` ms (range across runs roughly `0.94`-`1.47` ms at P95/P99), median combined CPU `2.13` s and median combined peak RSS upper bound `~265.6` MiB (Python component medians `1.33` s CPU / `~138.9` MiB RSS, Zeek component medians `0.78` s CPU / `~126.7` MiB RSS — each computed independently across the 5 runs like every other per-metric median here, so they do not necessarily sum exactly to the combined figures; RSS also not necessarily simultaneous). A PR #5 review finding caught that an earlier revision of this table instead hand-picked the 3 lowest-wall-clock runs from a larger unshown batch, which systematically biases throughput up and latency down; this 5-run batch replaces that selection. Full per-run table, method, the Mbps-basis fix, the run-selection-bias fix, and the explicit 51-sample caveat on P95/P99 confidence are in `docs/evaluation.md`. Model-only batch inference measured separately at `2.340909655567489` microseconds/domain (`427184.36297686916` domains/second) and is not pipeline throughput.
 
 ### SIH Compliance State
 
@@ -97,8 +102,9 @@ Last updated: **2026-08-30 (UTC)**
 
 ### Immediate Next Actions
 
-1. Milestone 4 is merged and frozen; do not redesign Milestones 1–4 without a demonstrated regression.
-2. Treat the measured end-to-end benchmark and final submission/PPT rehearsal as the next feature-freeze priorities.
+1. Milestones 1–4 are merged and frozen; do not redesign them without a demonstrated regression.
+2. Milestone 5 (this worktree) is implemented, tested, and gate-verified. Review, PR, merge, and freeze it.
+3. After merge, treat final submission/PPT rehearsal as the last feature-freeze priority (2026-08-30 is feature freeze; 2026-08-31 is reserved for verification/demo/PPT/packaging only).
 
 ### Commands to Resume
 
@@ -113,7 +119,7 @@ Progress status vocabulary is `PLANNED`, `IN PROGRESS`, `IMPLEMENTED`, `TESTED`,
 
 ## Current Phase
 
-**Milestones 1, 2, 3, and 4 are verified, merged, and frozen on `main`. Milestone 4's minimum API/store/dashboard merged via PR #4 at `44c51d8`; its feature branch and worktree were deleted after merge. `main` matches `origin/main`.**
+**Milestones 1, 2, 3, and 4 are verified, merged, and frozen on `main`. Milestone 4's minimum API/store/dashboard merged via PR #4 at `44c51d8`; its feature branch and worktree were deleted after merge. `main` matches `origin/main`. Milestone 5 (end-to-end benchmark; see the Benchmark State section above) is implemented, tested, and gate-verified on `feature/milestone-5-benchmark` (PR #5) but not yet merged into `main`.**
 
 The verified path is:
 
@@ -131,7 +137,7 @@ deterministic PCAP replay
   -> loopback API + same-origin static dashboard
 ```
 
-Demonstrated detector coverage spans three of six required classes: reconnaissance/port scanning, the SYN-flood subset of volumetric/protocol DDoS, and DGA lexical detection. UDP reflection/amplification, C2 beaconing, DNS tunnelling, encrypted-session malware metadata, data exfiltration, and end-to-end benchmarking remain absent.
+Demonstrated detector coverage spans three of six required classes: reconnaissance/port scanning, the SYN-flood subset of volumetric/protocol DDoS, and DGA lexical detection. UDP reflection/amplification, C2 beaconing, DNS tunnelling, encrypted-session malware metadata, and data exfiltration remain absent. End-to-end benchmarking is measured (see the Benchmark State section above and `docs/evaluation.md`) on `feature/milestone-5-benchmark`, not yet merged into `main`.
 
 ## Authoritative Context and Git State
 
@@ -141,8 +147,8 @@ Demonstrated detector coverage spans three of six required classes: reconnaissan
 - Versioned feature semantics: `docs/features.md`
 - Requirements traceability: `docs/requirements-traceability.md`
 - Repository: `/home/agntdrgn/WorkSpace/SIH26145`
-- Current branch: `main`
-- Current worktree: `/home/agntdrgn/WorkSpace/SIH26145` (main worktree; no milestone worktree is active)
+- Current branch: `feature/milestone-5-benchmark`
+- Current worktree: `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-5-benchmark` (active Milestone 5 worktree; PR #5 open as a draft against `main`, not yet merged)
 - Milestone 4 merge commit: `44c51d88da7d9d1abb574da3775e06832cf5846a`
 - Milestone 4 base commit: `7498634bf2e91a9540197166d876c3e381adee40`
 - Main worktree: `/home/agntdrgn/WorkSpace/SIH26145`
@@ -239,6 +245,22 @@ Milestone 4 adds:
 - A package-local static HTML/CSS/JavaScript dashboard with no frontend dependency or build step, same-origin requests, at most 50 rows, non-overlapping polling, replay-time polling pause, text-only DOM assignment, responsive geometry, and explicit unsupported-coverage labels.
 - Actual empty and three-alert screenshots after desktop and narrow browser inspection.
 
+Milestone 5 adds:
+
+- `tools/generate_benchmark_fixture.py`: a deterministic, offline, documentation-address-range PCAP generator producing one sustained-load fixture (20,000 background SYN + 199 background DNS events kept benign by a measured combination of port/host monoculture and rolling-window event/source counts staying under each detector's minimums — see `docs/evaluation.md` for the exact measured numbers, plus 10 independent exact-threshold copies each of the verified Milestone 1 port-scan and Milestone 2 SYN-flood patterns, plus the verified Milestone 3 DGA domain and further deterministic candidate domains kept only when the actual packaged `dga_logreg_v1` model scores them above threshold). Not committed (`.gitignore` `*.pcap`); regenerated on demand, with a byte-determinism/`--check`/no-network-import test suite mirroring Milestones 1–3.
+- `tools/run_benchmark.py`: a developer-only measurement harness that replays that fixture through the unmodified `sih26145.runtime.build_detection_pipeline` output via the existing `run_replay`/`run_command` path, using a `TimingPipeline` subclass of the frozen `DetectionPipeline` (subclassing rather than wrapping is required because `run_command` only routes DNS events to a detector that `isinstance`-checks true as `DetectionPipeline`) to record per-event wall-clock processing time, plus an emit callback that performs the real CLI's JSON-serialize-then-write-and-flush emission work into a real OS pipe drained by a background reader thread (`_ConsumedPipe`, exercising the same kernel write/consume path as the real CLI's `sys.stdout` when piped to a consumer, unlike `os.devnull`'s always-instant sink) so measured alert latency covers detector work through actual emission, not detector time alone -- post-validation latency, not the full event-acceptance-to-alert-availability interval, since the frozen `run_command` path already reads and validates the record before this timer starts -- plus `resource.getrusage` CPU/peak-RSS for the process performing the replay (`RUSAGE_SELF`) and the native Zeek child it spawns and fully waits for (`RUSAGE_CHILDREN`), and wall-clock-derived throughput: events/sec from total events divided by elapsed time, and Mbps from the fixture manifest's own `total_captured_bytes` (summed captured Ethernet frame lengths) divided by elapsed time — not the pcap file size, which also counts a 24-byte global header plus a 16-byte record header per packet (capture-format overhead, not traffic). A hard `_MAX_MEASURED_EVENTS` (100,000, matching `SynFloodState`'s own existing global event cap) bounds the per-event bookkeeping lists regardless of manifest trust, and a hard `_MAX_WORKER_MANIFEST_BYTES` (1 MiB, versus the real ~16 KiB manifest) bounds the manifest file itself before it is even read or parsed, since the internal `--worker-manifest` entry point (see below) cannot re-validate against the generator without re-polluting the Zeek RUSAGE_CHILDREN reading. That bound is enforced by rejecting any non-regular manifest path outright and then reading at most one byte over the limit directly, not by trusting a separately queried `stat().st_size` (which a FIFO or character device can misreport, commonly as `0`, while still supplying unbounded or blocking bytes on read). Input is validated before any bytes are loaded: `--pcap` must be a regular file (checked both by an `is_file()` pre-check, which never opens the path, and by `fstat` on the actual open descriptor, so a FIFO or character device is rejected without risking a block on open or a misreported size on read) matching, by size then by SHA-256 digest computed by streaming fixed-size chunks capped at `expected_size + 1` bytes total regardless of how large the underlying file claims or grows to be, the size/digest `tools.generate_benchmark_fixture --fixture-info` currently produces (trust anchored to that deterministic generator, not a caller-controlled sidecar file), and the completed replay's event count and per-class alert counts must match that same generated fixture's own manifest before a report is produced. Those same streamed chunks are copied into a private temporary file as they are validated, and the worker subprocess replays that private copy rather than the caller-supplied `--pcap` path, so a path swap (retargeted symlink, replaced file) between validation completing and the worker later opening it cannot substitute unvalidated bytes into the measured replay. Validation and the measured replay each run in their own dedicated subprocess (`_generator_fixture_info`, `_measure_replay` via a `--worker-manifest` re-invocation) so the generator's own ~21,431-packet object-graph construction cannot inflate either the reported Python or the reported Zeek CPU/RSS figures — see the PR #5 review-fix note below.
+- No detector, contract, replay-runner, API, or model behavior changed for this milestone.
+- Measured, recorded, real evidence (predefined, unselected batch of 5 consecutive runs reported in full, per-metric medians; see `docs/evaluation.md`): `12,600`-`16,250` events/sec, `5.5`-`7.1` Mbps (from actual traffic bytes, not pcap file size), event-processing-latency P50/P95/P99 median `0.020`/`0.033`/`0.406` ms, alert-latency (post-validation: detector start through actual emission into a real, drained OS pipe -- excludes the line-read/parse/validate `run_command` already did) P50/P95/P99 median `0.862`/`1.018`/`1.049` ms over 51 alert samples/run, median combined CPU `2.13` s, median combined peak RSS upper bound `~265.6` MiB (Python component medians `1.33` s CPU / `~138.9` MiB RSS, Zeek component medians `0.78` s CPU / `~126.7` MiB RSS — independently computed, not additive). Four PR #5 review findings (validation/measurement subprocess isolation; Mbps computed from actual traffic bytes, not pcap file overhead; unbiased run reporting instead of hand-picking the 3 lowest-wall-clock runs from a larger batch; component CPU/RSS medians presented as independent figures rather than an additive equation) are fixed. See `docs/evaluation.md` for the corrected methodology and the complete 5-run table.
+
+## Milestone 5 Acceptance
+
+- [x] Locked environment synchronization succeeds and the recorded pre-implementation baseline (`347 passed`) passed.
+- [x] The benchmark fixture is deterministic, offline, byte-reproducible, and produces exactly the expected event/alert counts on native Zeek replay.
+- [x] The benchmark harness measures the existing, unmodified detector/replay path (no duplicated detection logic, no new detector/model behavior).
+- [x] Throughput (events/sec, Mbps), event-processing and alert-latency P50/P95/P99, CPU, and peak RSS are measured from real command execution, not estimated or fabricated.
+- [x] Focused unit tests cover the percentile function and the timing proxy's recording/dispatch behavior; full suite, Ruff lint/format, strict mypy, all four fixture `--check` commands, and `uv build` pass together.
+- [x] `docs/evaluation.md`, `docs/requirements-traceability.md`, `docs/limitations.md`, `docs/ppt-notes.md`, `docs/architecture.md`, `README.md`, and this file are synchronized with the measured results and honest scope limitations.
+
 ## Milestone 4 Acceptance
 
 - [x] Locked environment synchronization succeeds and the recorded pre-implementation baseline passed.
@@ -297,6 +319,68 @@ PR #3 follow-up review found that lowercasing preceded ASCII validation. `normal
 - [x] Requirements traceability, feature documentation, PPT facts, and this handoff are current.
 
 ## Exact Evidence Commands
+
+Fresh Milestone 5 implementation/verification was run from the dedicated worktree on 2026-08-30:
+
+```bash
+UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv sync --frozen --group dev
+UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv run pytest -q
+UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv run ruff check .
+UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv run ruff format --check .
+UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv run mypy src tests tools
+UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv run python tools/generate_milestone1_fixtures.py --output tests/fixtures/milestone1 --check
+UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv run python tools/generate_milestone2_fixtures.py --output tests/fixtures/milestone2 --check
+UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv run python tools/generate_milestone3_fixtures.py --output tests/fixtures/milestone3 --check
+UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv run python tools/generate_benchmark_fixture.py --output tests/fixtures/benchmark
+UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv run zeek -D -b -r tests/fixtures/benchmark/sustained_load.pcap src/sih26145/zeek/emit_events.zeek
+UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv run sih26145-replay tests/fixtures/benchmark/sustained_load.pcap
+UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv run python tools/run_benchmark.py --pcap tests/fixtures/benchmark/sustained_load.pcap
+UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv build
+git diff --cached --check
+```
+
+Observed results: locked sync checked 33 packages; the full suite reported `361 passed`; Ruff lint passed; Ruff confirmed 73 files formatted; strict mypy found no issues in 57 source files; all four fixture `--check` commands exited `0`; native Zeek replay of the generated benchmark PCAP emitted exactly `21431` events ending with `end_of_stream`; `sih26145-replay` on the same PCAP emitted exactly 51 alert lines (10 `PORT_SCAN`, 10 `SYN_FLOOD`, 31 `DGA`); `tools/run_benchmark.py` ran three times, each reporting exactly `21431` events processed and 51 alerts emitted, with the throughput/latency/CPU/RSS figures (per-metric medians) recorded in `docs/evaluation.md`; the sdist/wheel build succeeded; `git diff --cached --check` passed.
+
+Fresh evidence for the PR #5 subprocess-isolation review fix (`r3889840575`) was run from the same worktree on 2026-08-30:
+
+```bash
+UV_CACHE_DIR=/tmp/sih26145-m5-fix-uv-cache uv run ruff check .
+UV_CACHE_DIR=/tmp/sih26145-m5-fix-uv-cache uv run ruff format --check .
+UV_CACHE_DIR=/tmp/sih26145-m5-fix-uv-cache uv run mypy src tests tools
+UV_CACHE_DIR=/tmp/sih26145-m5-fix-uv-cache uv run pytest -q
+UV_CACHE_DIR=/tmp/sih26145-m5-fix-uv-cache uv run python tools/generate_benchmark_fixture.py --output tests/fixtures/benchmark --check
+UV_CACHE_DIR=/tmp/sih26145-m5-fix-uv-cache uv run zeek -D -b -r tests/fixtures/benchmark/sustained_load.pcap src/sih26145/zeek/emit_events.zeek
+UV_CACHE_DIR=/tmp/sih26145-m5-fix-uv-cache uv run sih26145-replay tests/fixtures/benchmark/sustained_load.pcap | wc -l
+UV_CACHE_DIR=/tmp/sih26145-m5-fix-uv-cache uv run python tools/run_benchmark.py --pcap tests/fixtures/benchmark/sustained_load.pcap  # x3
+UV_CACHE_DIR=/tmp/sih26145-m5-fix-uv-cache uv build
+git diff --cached --check
+```
+
+Observed results: Ruff lint passed; Ruff confirmed 73 files formatted; strict mypy found no issues in 57 source files; the full suite reported `374 passed` (13 new tests: `--fixture-info`/worker-manifest coverage plus an AST-based regression pinning that `tools/run_benchmark.py` never imports the generator's object-graph builder in-process); the `--check` fixture command confirmed the pcap bytes are unchanged (only the generator's argparse/CLI surface changed); native Zeek replay still emitted exactly `21431` events; `sih26145-replay` still emitted exactly 51 alert lines; `tools/run_benchmark.py` ran three times with the two-subprocess isolation, each reporting exactly `21431` events processed and 51 alerts emitted, with corrected per-metric-median figures recorded in `docs/evaluation.md`, `docs/limitations.md`, `docs/ppt-notes.md`, and the Benchmark State section above; the sdist/wheel build succeeded; `git diff --cached --check` passed.
+
+A code-review pass on PR #5 found the alert-latency measurement timed only `DetectionPipeline.process()` (not the real serialize/write/flush emission), that 3 alert samples could not support a P95/P99 claim, and that a summary CPU figure was miscalculated. All three were fixed: `tools/run_benchmark.py` now times event-acceptance through an emit callback that performs the CLI's actual JSON-serialize-then-write-and-flush work; `tools/generate_benchmark_fixture.py` now embeds 10 independent Milestone 1 port-scan and 10 independent Milestone 2 SYN-flood incidents plus model-verified DGA candidate domains (31 qualified), yielding 51 alert samples/run instead of 3; and every reported figure below is now computed programmatically as a genuine per-metric median across 3 runs.
+
+A follow-up PR #5 review comment (`r3889840575`) found that validating `--pcap` called `_benchmark_artifacts()` in-process before sampling `RUSAGE_SELF`, so the reported Python peak RSS could reflect the fixture generator's ~21,431-packet object-graph construction rather than the detector replay. A first attempted fix moved that validation into its own subprocess, but since that subprocess was reaped *before* Zeek, it instead polluted the reported Zeek RSS via `RUSAGE_CHILDREN`'s cross-child high-water mark (observed regression: Zeek RSS rose from its true ~126 MiB to ~140 MiB, matching the generator's own footprint). The final fix runs fixture validation (`_generator_fixture_info`) and the measured replay itself (`_measure_replay`, invoked via a `--worker-manifest` re-exec of this same script) in two separate, dedicated subprocesses, so neither pollutes the other; `tools/generate_benchmark_fixture.py` gained a `--fixture-info` mode to support this without ever transmitting the full ~1.5 MB pcap bytes over the subprocess boundary. Three fresh runs under the corrected methodology measured `16,500`-`17,750` events/sec, median combined CPU `1.84` s (Python component median `1.15` s, Zeek component median `0.69` s), and median combined peak RSS `~265.3` MiB (Python component median `~138.8` MiB, Zeek component median `~126.6` MiB) — close to the pre-fix headline figures, confirming the bug did not, in practice, materially distort them for this fixture's size, but the corrected methodology is what is now trusted and documented throughout. (These three-run figures were themselves later superseded by the unbiased 5-run batch recorded further below and in `docs/evaluation.md`.)
+
+A further PR #5 review comment (`r3889897384`) found that the new internal `--worker-manifest` entry point bypasses `_validate_pcap_matches_generated_fixture()` by design (it must: re-validating via the generator inside the measured worker would re-corrupt Zeek's `RUSAGE_CHILDREN` reading). `TimingPipeline.process` now enforces a hard `_MAX_MEASURED_EVENTS` cap (100,000, matching `SynFloodState`'s own existing global event limit) regardless of manifest trust, raising the existing `StateLimitExceeded` (which `sih26145.replay.run_command` already re-raises bare); `_run_worker` catches it for a clean diagnostic. The real 21,431-event fixture stays far under the cap. Full suite: `375 passed` (1 new regression pinning the enforcement point directly).
+
+A final PR #5 review comment (`r3889932943`) found that reported Mbps used `pcap_path.stat().st_size` (the pcap *file* size, `1,507,321` bytes) as its byte basis, which also counts a 24-byte global header plus a 16-byte record header per packet -- `342,920` bytes of pure capture-format overhead for this fixture's 21,431 packets, none of it network traffic; the reviewer computed the resulting overstatement as roughly `9.68` Mbps reported versus `~7.48` Mbps of actual captured frames. `tools/generate_benchmark_fixture.py`'s manifest now also records `total_captured_bytes` (`1,164,401` for this fixture -- the sum of captured Ethernet frame lengths, computed once from the trusted capture bytes the generator already produces); `tools/run_benchmark.py` now computes Mbps from that manifest field instead of the pcap file size, and reports both `pcap_bytes` and the new `traffic_bytes` separately for transparency. Applying the corrected formula to the previously recorded, unaffected wall-clock times from the isolation-fix's quieter session (`1.245`/`1.207`/`1.299` s) gives `7.48`/`7.72`/`7.17` Mbps (median `7.48`) -- confirming the reviewer's own estimate exactly. Fresh end-to-end re-measurement for this fix ran under measurably heavier background host contention than that quieter session (median wall-clock `~1.62` s versus `~1.25` s previously, on the same fixture/hardware); the three least-contended of several runs are the ones now recorded in `docs/evaluation.md`, `docs/limitations.md`, `docs/ppt-notes.md`, `docs/requirements-traceability.md`, and the Benchmark State section above, with the contention disclosed rather than hidden. Full suite: `375 passed`; Ruff lint/format, strict mypy, all four fixture `--check` commands (fixture bytes unchanged; only the manifest gained two new fields), native Zeek/CLI replay, and `uv build` all pass.
+
+A further PR #5 review comment (`r3889981882`) found that the documented benchmark table selected only the 3 lowest-wall-clock runs from a larger, unshown batch, which systematically favors higher throughput and lower latency rather than representing genuinely repeated performance -- `docs/requirements-traceability.md` also called it an "all-run table" even though the omitted runs were never shown. Fixed by adopting a predefined, reproducible run-selection policy instead of post-hoc picking: 5 consecutive runs of `uv run python tools/run_benchmark.py --pcap tests/fixtures/benchmark/sustained_load.pcap` (no code change; `tools/run_benchmark.py` already produces one report per invocation), taken in full with none selected, reordered, or discarded by its own result. All 5 runs produced exactly 21,431 events and 51 alerts (10 `PORT_SCAN` + 10 `SYN_FLOOD` + 31 `DGA`) and measured `12,600`-`16,250` events/sec (`5.5`-`7.1` Mbps, median `~14,800`/`~6.4`), event-processing-latency P50/P95/P99 median `0.020`/`0.033`/`0.406` ms, alert-latency P50/P95/P99 median `0.862`/`1.018`/`1.049` ms (range `0.94`-`1.47` ms at P95/P99 across runs -- the ~13% spread reflects ordinary shared-host contention, disclosed rather than narrowed by selection), median combined CPU `2.13` s, and median combined peak RSS upper bound `271,996` KiB ≈ `265.6` MiB (Python component medians `1.33` s CPU / `~138.9` MiB RSS, Zeek component medians `0.78` s CPU / `~126.7` MiB RSS — each independently computed across the 5 runs, so they do not necessarily sum exactly to the combined figures). `docs/evaluation.md`, `docs/limitations.md`, `docs/ppt-notes.md`, `docs/requirements-traceability.md`, and the Benchmark State section above now report this complete 5-run batch instead of a hand-picked subset. Full suite: `375 passed`; Ruff lint/format, strict mypy, fixture `--check` (bytes unchanged), and native Zeek/CLI replay all pass; no source code changed, so `uv build` is unaffected.
+
+Two further PR #5 review comments (`r3890121073`, `r3890121077`) followed the 5-run-batch fix: `docs/requirements-traceability.md` still told readers the Milestone 5 evidence was a "per-run table (3 runs)", stale after the 5-run replacement; and `docs/ppt-notes.md`'s benchmark table wrote `1.33 s + 0.78 s = ~2.13 s combined`, which is arithmetically wrong (`1.32757 + 0.782425 ≈ 2.11`, not `2.133134`) because the Python and Zeek component figures are each an independently computed per-metric median across the 5 runs, not components of one run, so they need not sum exactly to the combined-column median. Fixed by updating the stale "3 runs" reference to "5 runs", and by removing every "component + component = combined" equation across `docs/evaluation.md`, `docs/limitations.md`, `docs/ppt-notes.md`, `docs/requirements-traceability.md`, and this file, replacing it with wording that presents the combined median and its Python/Zeek component medians as separately, independently computed figures. No measured value changed; only the presentation of already-recorded figures. Full suite: `375 passed`; Ruff lint/format, strict mypy, and `git diff --check` all pass; no source code changed.
+
+A further PR #5 review comment (`r3890156745`) found that the `_MAX_MEASURED_EVENTS` cap added for `r3889897384` bounds only the per-event bookkeeping lists inside `TimingPipeline.process`, but a direct `--worker-manifest` invocation still calls `manifest_path.read_text()` and `json.loads()` on the caller-supplied manifest file in full *before* reaching that cap, so an arbitrarily large manifest file could exhaust memory before any per-event bound ever runs. Fixed by adding `_MAX_WORKER_MANIFEST_BYTES` (1 MiB -- generous headroom over the real ~16 KiB manifest, not a tuned production limit) and checking `manifest_path.stat().st_size` against it in `_run_worker` before `read_text`/`json.loads` are ever called, printing a `worker_manifest_error: manifest_too_large` diagnostic and exiting 1 on violation. The normal `run_benchmark()` path (which always writes its own small manifest) is unaffected. A focused regression writes an over-bound manifest containing invalid JSON and asserts the size check trips before parsing (proven by the diagnostic being the size error rather than a `JSONDecodeError`). Full suite: `376 passed` (1 new); Ruff lint/format, strict mypy, fixture `--check`, native replay, and `uv build` all pass; no measured benchmark figures changed.
+
+A further PR #5 review comment (`r3890178195`) found that the manifest-size fix for `r3890156745` still trusted `manifest_path.stat().st_size`: a non-regular `--worker-manifest` path (a FIFO, a character device such as `/dev/zero`) can report a misleading size -- commonly `0` -- so the size check would pass and `read_text()` would then proceed unbounded, able to block indefinitely (FIFO with no writer) or exhaust memory (`/dev/zero`) before the event cap ever ran. `_run_worker` now rejects any `manifest_path` that is not a regular file via `Path.is_file()` before attempting any read at all, and reads at most `_MAX_WORKER_MANIFEST_BYTES + 1` bytes directly (`handle.read(N + 1)`, checking the returned length) rather than trusting a separately queried size, so the same bound holds regardless of what `stat()` reports. Two focused regressions: a FIFO with no writer is rejected by the `is_file()` check alone (the test would hang if the implementation ever tried to open/read it, proving the rejection happens first); the existing oversized-manifest regression continues to pass under the new bounded-read implementation. Full suite: `377 passed` (1 new); Ruff lint/format, strict mypy, fixture `--check`, native replay, and `uv build` all pass; no measured benchmark figures changed.
+
+A further PR #5 review comment (`r3890196106`) found a TOCTOU gap in the overall validation flow: `run_benchmark()` validated `--pcap` in the calling process, then separately spawned a worker subprocess pointed at that same original path. If the path (a symlink, a swapped file) were replaced after validation completed but before the worker later opened it for replay, the worker would replay unvalidated bytes while the result checks and Mbps calculation still trusted the original fixture's manifest/`total_captured_bytes` -- an alternate capture matching the fixture's event/alert counts could pass verification while producing invalid benchmark evidence. Fixed by copying the validated bytes into a private temporary file as they are streamed for hashing (`_validate_pcap_matches_generated_fixture` now writes each chunk it reads to a `dest_path` alongside updating the digest), and pointing the worker subprocess at that private copy instead of the caller-supplied path; validation and replay are now provably the same bytes by construction, not just by an earlier check. The report's `pcap_path` field still shows the caller-supplied path for readability (the two are guaranteed identical). A focused regression proves the copy is byte-for-byte identical to the source; existing validation tests updated for the new `dest_path` parameter. Full suite: `377 passed`; Ruff lint/format, strict mypy, fixture `--check`, native replay (still 21,431 events / 51 alerts), and `uv build` all pass; no measured benchmark figures changed.
+
+Two further PR #5 review comments (`r3890220944`, `r3890220948`) followed the TOCTOU fix:
+
+`r3890220944` found that although emit-time measurement was fixed earlier, the alert-latency timer still starts only inside `DetectionPipeline.process()`, after `run_command()` (the frozen, unmodified replay path) has already read the raw Zeek JSONL line and completed `_parse_record`'s JSON decode and Pydantic contract validation. On inputs where parsing/pipe delay is material, the previously documented "event-acceptance-to-alert-availability" claim therefore omitted part of the operational event-to-alert path. Rather than modify `run_command` itself (which this benchmark deliberately never touches, to keep measuring the actual unmodified replay path), every "alert latency" description across `tools/run_benchmark.py`'s docstrings, `docs/evaluation.md`, `docs/ppt-notes.md`, `docs/architecture.md`, `docs/requirements-traceability.md`, and this file was relabeled as post-validation detector-to-emission latency, explicitly noting it excludes the line-read/parse/validate cost `run_command` already performs before the timer starts. No measured value changed.
+
+`r3890220948` found that `_validate_pcap_matches_generated_fixture` still checked size with a preliminary `stat()` and then read/hashed in an unbounded loop: if the pathname were replaced, retargeted, or appended after that `stat()` but before or during the following `open()`+read, a growing regular file, or a FIFO/character device swapped in afterward, could make the loop copy/hash until EOF (or block forever) despite the claimed fixed input bound. Fixed by opening the candidate once, rejecting non-regular files via both an `is_file()` pre-check (which never opens the path, so a plain FIFO with no writer cannot block the process) and an `fstat` of the actual open descriptor, and bounding the read loop to stop after at most `expected_size + 1` bytes regardless of what the file claims or how large it grows. Three focused regressions: a FIFO with no writer is rejected without ever being opened (the test would hang otherwise); a file far larger than the expected fixture size is still rejected promptly rather than fully hashed; the existing missing-file test's expected message updated to match the new `is_file()`-based check. Full suite: `379 passed` (3 new); Ruff lint/format, strict mypy, fixture `--check`, native replay (still 21,431 events / 51 alerts), and `uv build` all pass; no measured benchmark figures changed.
 
 Fresh Milestone 4 verification was run from the dedicated worktree on 2026-08-30:
 
@@ -509,16 +593,16 @@ Read-only ingest:             VERIFIED for deterministic PCAP replay
 Active probing/return path:   ABSENT and verified for the current path
 Payload decryption:           ABSENT and verified for SYN and DNS/DGA paths
 Streaming processing:         VERIFIED; all three class callbacks precede EOS
-Bounded alert latency:        Incremental path implemented; wall-time percentiles NOT MEASURED
+Bounded alert latency:        PARTIALLY MEASURED; post-validation detector-to-emission P50/P95/P99 measured over 51 alert samples/run, ~0.7-1.5 ms across a predefined unselected 5-run batch (median P95/P99 ~1.0-1.0 ms), excludes the raw-record read/parse/validation `run_command` already performs before the timer starts, so this is not the full record-availability-to-alert-availability bound; see docs/evaluation.md
 Alert schema/evidence:        VERIFIED with actual strict PORT_SCAN, SYN_FLOOD, and DGA records
 Dataset research/provenance:  Source licences/hashes/revision and fixture provenance VERIFIED
 ML model trained:             VERIFIED for dga_logreg_v1 with grouped held-out evaluation
 Model storage/resume:         Packaged joblib + strict metadata VERIFIED; remote resume NOT APPLICABLE
 Offline model inference:      VERIFIED for packaged local DGA model with socket disabled
 Threat coverage:              3 / 6 demonstrated; DDoS limited to SYN flood, DNS limited to DGA
-Throughput measured:          NO
-Demo reproducible:            VERIFIED for native scan, SYN-flood, DGA, and comparison replay
-PPT evidence:                 Actual dashboard screenshots captured; performance plots NOT CAPTURED
+Throughput measured:          YES; 12,600-16,250 events/sec (5.5-7.1 Mbps, from actual traffic bytes), predefined unselected 5-run batch, Python+Zeek combined CPU/RSS, see docs/evaluation.md
+Demo reproducible:            VERIFIED for native scan, SYN-flood, DGA, comparison replay, and the benchmark
+PPT evidence:                 Actual dashboard screenshots and measured benchmark table captured; final deck NOT ASSEMBLED
 ```
 
 ## Limitations and Risks
@@ -533,9 +617,9 @@ PPT evidence:                 Actual dashboard screenshots captured; performance
 - State pressure stops the prototype with a named invariant. A future live path needs measured degradation/telemetry without weakening bounds.
 - Native e2e fixtures are IPv4; IPv6 has unit coverage only.
 - Child stderr is intentionally not public. Trusted diagnostics preserve the failed invariant, but additional private troubleshooting tooling may be needed later.
-- No wall-clock alert latency, throughput, CPU, or memory result exists.
+- Wall-clock alert latency, throughput, CPU, and memory are now measured on `feature/milestone-5-benchmark` (see the Benchmark State section above and `docs/evaluation.md`); not yet merged into `main`.
 - No official downloadable SIH26145 dataset was found as of 2026-08-26; the selected Majestic and DGA sources have recorded licences/provenance, and every future corpus still requires review.
-- No final presentation or end-to-end performance evidence exists yet. The local API/dashboard and actual screenshot set now exist.
+- No final presentation deck exists yet. The local API/dashboard, actual screenshot set, and measured end-to-end benchmark evidence now exist.
 
 ## Milestone 2 Approved Plan Outcome: Streaming SYN-DDoS (`VERIFIED`)
 
@@ -558,7 +642,7 @@ Milestones 1 through 4 are merged, verified, and frozen on `main` (Milestone 4 v
 
 1. Confirm the repository/worktree and inspect `git status`, diffs, and recent commits.
 2. Read `AGENTS.md`, `docs/problem.md`, this file, and relevant source/tests completely.
-3. Confirm work continues on `main` (no milestone branch/worktree is currently active); keep Milestones 1 through 4 frozen unless a demonstrated regression requires touching them.
+3. Confirm work continues on `feature/milestone-5-benchmark` in `.worktrees/milestone-5-benchmark` until it is reviewed, merged, and frozen; keep Milestones 1 through 4 frozen unless a demonstrated regression requires touching them.
 4. Treat this as a verified snapshot, not a substitute for fresh commands.
-5. Do not redesign frozen Milestones 1 through 4; the next milestone (benchmark/PPT work) still needs its own fresh branch/worktree per the branch policy if it involves code changes.
+5. Do not redesign frozen Milestones 1 through 4. Milestone 5 is implemented and gate-verified but not yet reviewed/merged; do not start a new milestone worktree before that happens.
 6. Never claim a class, model, dashboard, metric, screenshot, or benchmark without actual current evidence.

@@ -2,7 +2,7 @@
 
 Last verified: **2026-08-30 (UTC)**
 
-These are presentation-ready facts for Milestones 1 through 4. Actual local dashboard screenshots are recorded below. No end-to-end performance measurement is claimed here.
+These are presentation-ready facts for Milestones 1 through 5. Actual local dashboard screenshots and the measured end-to-end benchmark are recorded below.
 
 ## Verified Demo Story
 
@@ -113,6 +113,21 @@ Native replay of the 124-byte synthetic fixture emitted one 987-byte strict aler
 
 The controlled `example.com` fixture received probability `0.0018385042677530868` and emitted exactly zero bytes. These two fixtures are demonstration evidence, not a production error-rate estimate.
 
+## Actual End-to-End Benchmark Evidence
+
+Deterministic sustained-load replay (`tests/fixtures/benchmark/sustained_load.pcap`: 21,431 events, 1,507,321 file bytes / 1,164,401 actual traffic bytes, exactly 51 alerts — 10 `PORT_SCAN` + 10 `SYN_FLOOD` + 31 model-verified `DGA`) through the unmodified `DetectionPipeline`, measured on WSL2 Linux, 16 logical CPUs, Python `3.13.15`, Zeek `8.2.2` (per-metric median across a predefined, unselected batch of 5 consecutive runs, each computed independently — not one "representative" run and not a hand-picked subset; full per-run table in `docs/evaluation.md`):
+
+| Metric | Measured value |
+| --- | ---: |
+| Sustained throughput | `~14,800` events/sec (range `12,600-16,250` across 5 runs) |
+| Sustained throughput | `~6.4` Mbps (range `5.5-7.1` across 5 runs) |
+| Event processing latency P50 / P95 / P99 | `0.020` / `0.033` / `0.406` ms |
+| Alert latency P50 / P95 / P99 (post-validation: detector start through actual JSON serialization + write/flush into a real, drained OS pipe -- excludes the line-read/parse/validate that `run_command` already did) | `0.862` / `1.018` / `1.049` ms |
+| CPU, combined (replay process + Zeek child) | `~2.13` s (component medians: Python `1.33` s, Zeek `0.78` s) |
+| Peak RSS, combined, upper bound (replay process + Zeek child) | `~265.6` MiB (component medians: Python `~138.9` MiB, Zeek `~126.7` MiB) |
+
+This is one-replay measurement across both the Python detector process and its native Zeek child, over 51 alert observations; it is not a live-capture, multi-core, production-traffic-mix, or large-scale tail-latency claim, and combined peak RSS is an upper bound since the two processes need not peak simultaneously. Alert latency is measured from the start of `DetectionPipeline.process()`, which is already after `run_command` (the frozen, unmodified replay path) has read the raw JSONL line and completed JSON/Pydantic validation -- so this is post-validation detector-to-emission latency, not the full event-acceptance-to-alert-availability interval from raw record availability (a PR #5 review finding). The combined CPU/RSS figures and their Python/Zeek component figures are each the independently computed median of that metric across the 5 runs (the same per-metric-median method used throughout this table), so a component pair does not necessarily sum exactly to its combined figure — a PR #5 review finding caught an earlier revision of this table implying `1.33 s + 0.78 s = 2.13 s` as if from one run. Mbps is computed from actual traffic bytes (summed captured Ethernet frame lengths), not the pcap file size, which also counts capture-format header overhead (a PR #5 review finding). The reported figures are a predefined, fixed-size batch of 5 consecutive runs, reported in full with no run selected, reordered, or discarded by its own result (a separate PR #5 review finding: an earlier revision instead hand-picked the 3 lowest-wall-clock runs from a larger unshown batch, which biases throughput up and latency down). The ~13% spread between the fastest and slowest of the 5 runs reflects ordinary background contention on a shared development host; peak RSS stayed essentially unchanged across runs (`~265` MiB either way). See `docs/evaluation.md` for the exact per-run table and scope limitations.
+
 ## Demo Commands
 
 ```bash
@@ -127,6 +142,8 @@ uv run sih26145-replay tests/fixtures/milestone2/benign_distributed.pcap
 uv run sih26145-replay tests/fixtures/milestone3/dga_dns.pcap
 uv run sih26145-replay tests/fixtures/milestone3/benign_dns.pcap
 uv run sih26145-dashboard
+uv run python tools/generate_benchmark_fixture.py --output tests/fixtures/benchmark
+uv run python tools/run_benchmark.py --pcap tests/fixtures/benchmark/sustained_load.pcap
 ```
 
 Expected demo behavior: each threshold command prints one compact class-specific alert JSON line; each benign command prints nothing and exits successfully. Native `zeek` must resolve through `PATH`.
@@ -139,10 +156,10 @@ Expected demo behavior: each threshold command prints one compact class-specific
 - How leakage is limited: DGA families, not rows, are held out; benign rows use stable hash buckets; domain overlap is zero. This does not guarantee unseen-family or production generalization.
 - Why evidence first: alerts carry actual triggering UIDs, capture-time windows, thresholds, rates, spans, deterministic samples, plus source fan-out or target/source-distribution evidence as appropriate.
 - How state is safe: hard bounds cover input lines, source/target event windows, UID/cooldown state, stderr retention, and process cleanup. State pressure fails with a named invariant instead of silently discarding evidence.
-- What remains: three untouched classes, UDP reflection/amplification, DNS tunnelling, end-to-end throughput and latency benchmarking, and the final PPT assembly.
+- What remains: three untouched classes, UDP reflection/amplification, DNS tunnelling, and the final PPT assembly.
+- How the benchmark stays honest: it reuses the unmodified `DetectionPipeline`/`run_replay` path, times it with a subclassed proxy rather than a separate code path, mixes benign background load with 10+10+31 independent copies of the already-verified Milestone 1/2/3 alert patterns (31 DGA domains are individually model-verified above threshold, not assumed; the traffic's true benign mechanism is itself measured against the real detectors, not assumed), measures alert latency through real JSON serialization and write+flush rather than detector time alone, measures CPU/RSS for both the Python process and the native Zeek child it spawns (not Python alone), reports per-metric medians across a predefined, fixed-size batch of 5 consecutive runs with none selected, reordered, or discarded by its own result, and discloses that 51 alert samples still bound how much a P95/P99 claim can support.
 
 ## Evidence Still Needed Before Final PPT
 
-- Measured detector/end-to-end P50/P95/P99 latency, sustained traffic rate, CPU, and memory with methodology.
 - Controlled evidence for exfiltration and any later C2/TLS coverage; UDP reflection/amplification and DNS tunnelling remain deferred.
 - Final PPT assembly and demo rehearsal using only the verified evidence above.
