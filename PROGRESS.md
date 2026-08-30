@@ -5,19 +5,19 @@ Last updated: **2026-08-30 (UTC)**
 ## Current Handoff State
 
 - **Date:** 2026-08-30 (UTC)
-- **Current branch:** `feature/milestone-4-local-api-dashboard`
+- **Current branch:** `main`
 - **Milestone 4 base commit:** `7498634bf2e91a9540197166d876c3e381adee40`
 - **Milestone 4 baseline evidence commit:** `67a78d74d63513affd8a2ac164bbd4d1c505a09a`
 - **Milestone 4 feature commit:** `571c4b1fa13529e659640259aab1475cd05182b3`
 - **Milestone 4 review-fix commit:** `47a1eda8327176480ada6ba6268bc372c3c03e20`
-- **Milestone 4 open pull request:** `https://github.com/AgentPhoenix7/SIH26145/pull/4`
+- **Milestone 4 merged pull request:** `https://github.com/AgentPhoenix7/SIH26145/pull/4`, merge commit `44c51d88da7d9d1abb574da3775e06832cf5846a`, merged 2026-08-30T12:31:46Z
 - **Milestone 2 merge commit:** `2e8706c404c088ee6e2312a740ff4df38dc63cbe`
 - **Milestone 2 final feature commit:** `7cb1eb513295a844ef8959616631f9f1e8fed531`
 - **Milestone 3 merge commit:** `9fc30e612f4ea5accbd412610b692899b93d4ffc`
 - **Milestone 3 final feature fix:** `d61bec43f6559e6191cb0d64309317844dbcc9a2`
-- **Current milestone:** Milestone 4 — minimal local API, bounded alert storage, and dashboard (**implemented, verified, and pushed in open PR #4; not merged**).
-- **Active milestone branch:** `feature/milestone-4-local-api-dashboard`
-- **Active milestone worktree:** `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-4-local-api-dashboard`
+- **Current milestone:** Milestone 4 — minimal local API, bounded alert storage, and dashboard (**MERGED into `main` at `44c51d88da7d9d1abb574da3775e06832cf5846a` and FROZEN**).
+- **Active milestone branch:** none; `feature/milestone-4-local-api-dashboard` was merged and deleted.
+- **Active milestone worktree:** none; `.worktrees/milestone-4-local-api-dashboard` was removed after merge.
 - **Milestone 3 base commit:** `95159b6da04f0ee7ae6b61b3befd941842aac9bc`
 - **Milestone 3 review-fix commit:** `9965de5b85d9d3add72ff417f16ad1f9a7875c19`
 - **Milestone 3 merged pull request:** `https://github.com/AgentPhoenix7/SIH26145/pull/3`
@@ -54,7 +54,7 @@ Last updated: **2026-08-30 (UTC)**
 
 ### In Progress
 
-- PR #4 is open from the verified Milestone 4 feature branch into `main`. Review is complete and ready to merge; no merge is authorized.
+- None. PR #4 merged into `main` at `44c51d88da7d9d1abb574da3775e06832cf5846a` on 2026-08-30T12:31:46Z; Milestone 4 is frozen. `main` also carries one post-merge documentation commit, `7a7e870` (`CLAUDE.md` added as a symlink to `AGENTS.md`), and matches `origin/main`.
 
 ### Known Problems
 
@@ -97,9 +97,8 @@ Last updated: **2026-08-30 (UTC)**
 
 ### Immediate Next Actions
 
-1. Await explicit merge direction for reviewed PR #4; do not merge automatically.
-2. Freeze Milestone 4 after integration; do not redesign Milestones 1–4 without a demonstrated regression.
-3. Treat the measured end-to-end benchmark and final submission/PPT rehearsal as the next feature-freeze priorities.
+1. Milestone 4 is merged and frozen; do not redesign Milestones 1–4 without a demonstrated regression.
+2. Treat the measured end-to-end benchmark and final submission/PPT rehearsal as the next feature-freeze priorities.
 
 ### Commands to Resume
 
@@ -114,7 +113,7 @@ Progress status vocabulary is `PLANNED`, `IN PROGRESS`, `IMPLEMENTED`, `TESTED`,
 
 ## Current Phase
 
-**Milestones 1, 2, and 3 are verified, merged, and frozen on `main`. The isolated Milestone 4 branch/worktree is based on `7498634`; its minimum API/store/dashboard is implemented and verified in open PR #4 but not merged.**
+**Milestones 1, 2, 3, and 4 are verified, merged, and frozen on `main`. Milestone 4's minimum API/store/dashboard merged via PR #4 at `44c51d8`; its feature branch and worktree were deleted after merge. `main` matches `origin/main`.**
 
 The verified path is:
 
@@ -142,9 +141,9 @@ Demonstrated detector coverage spans three of six required classes: reconnaissan
 - Versioned feature semantics: `docs/features.md`
 - Requirements traceability: `docs/requirements-traceability.md`
 - Repository: `/home/agntdrgn/WorkSpace/SIH26145`
-- Current branch: `feature/milestone-4-local-api-dashboard`
-- Current worktree: `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-4-local-api-dashboard`
-- Active milestone worktree: `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-4-local-api-dashboard`
+- Current branch: `main`
+- Current worktree: `/home/agntdrgn/WorkSpace/SIH26145` (main worktree; no milestone worktree is active)
+- Milestone 4 merge commit: `44c51d88da7d9d1abb574da3775e06832cf5846a`
 - Milestone 4 base commit: `7498634bf2e91a9540197166d876c3e381adee40`
 - Main worktree: `/home/agntdrgn/WorkSpace/SIH26145`
 - Milestone 3 merge commit: `9fc30e612f4ea5accbd412610b692899b93d4ffc`
@@ -553,13 +552,13 @@ The approved plan remained deliberately limited to SYN flood. All ten items are 
 9. Run the focused and full suites, replay real benign and flood fixtures, validate actual alert JSON, then update only affected README, architecture, feature, traceability, PPT, and progress documentation.
 10. Freeze Milestone 2 immediately after acceptance; UDP reflection/amplification remains deferred unless later schedule review proves it cheap and Tier 1 stays safe.
 
-Milestones 1 through 3 are merged, verified, and frozen. Milestone 4 is implemented, verified, and pushed in open PR #4; merge remains subject to explicit user direction. The next deadline priorities are the measured benchmark and final submission/PPT rehearsal.
+Milestones 1 through 4 are merged, verified, and frozen on `main` (Milestone 4 via PR #4, merge commit `44c51d8`). The next deadline priorities are the measured benchmark and final submission/PPT rehearsal.
 
 ## Handoff Checklist
 
 1. Confirm the repository/worktree and inspect `git status`, diffs, and recent commits.
 2. Read `AGENTS.md`, `docs/problem.md`, this file, and relevant source/tests completely.
-3. Confirm the active Milestone 4 branch/worktree and base commit recorded above; keep Milestones 1 through 3 frozen and do not broaden the implemented Milestone 4 slice.
+3. Confirm work continues on `main` (no milestone branch/worktree is currently active); keep Milestones 1 through 4 frozen unless a demonstrated regression requires touching them.
 4. Treat this as a verified snapshot, not a substitute for fresh commands.
-5. Do not redesign frozen Milestones 1 through 3 or broaden Milestone 4 beyond the implemented minimum scope.
+5. Do not redesign frozen Milestones 1 through 4; the next milestone (benchmark/PPT work) still needs its own fresh branch/worktree per the branch policy if it involves code changes.
 6. Never claim a class, model, dashboard, metric, screenshot, or benchmark without actual current evidence.
