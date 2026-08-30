@@ -1,4 +1,5 @@
 {
+  "capture_bytes": 1507321,
   "capture_sha256": "8a4c7e3cba34fd854eaa6e258677ffd9b986551e7189e04bf78f49f57530ac89",
   "endpoints": {
     "destination_ips": [
@@ -716,5 +717,6 @@
   "timestamp_range": {
     "end": "2023-11-14T22:18:14.296998Z",
     "start": "2023-11-14T22:13:20.000000Z"
-  }
+  },
+  "total_captured_bytes": 1164401
 }

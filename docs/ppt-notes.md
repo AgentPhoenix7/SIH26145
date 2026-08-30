@@ -115,18 +115,18 @@ The controlled `example.com` fixture received probability `0.0018385042677530868
 
 ## Actual End-to-End Benchmark Evidence
 
-Deterministic sustained-load replay (`tests/fixtures/benchmark/sustained_load.pcap`: 21,431 events, 1,507,321 bytes, exactly 51 alerts — 10 `PORT_SCAN` + 10 `SYN_FLOOD` + 31 model-verified `DGA`) through the unmodified `DetectionPipeline`, measured on WSL2 Linux, 16 logical CPUs, Python `3.13.15`, Zeek `8.2.2` (per-metric median of 3 runs, each computed independently — not one "representative" run; full per-run table in `docs/evaluation.md`):
+Deterministic sustained-load replay (`tests/fixtures/benchmark/sustained_load.pcap`: 21,431 events, 1,507,321 file bytes / 1,164,401 actual traffic bytes, exactly 51 alerts — 10 `PORT_SCAN` + 10 `SYN_FLOOD` + 31 model-verified `DGA`) through the unmodified `DetectionPipeline`, measured on WSL2 Linux, 16 logical CPUs, Python `3.13.15`, Zeek `8.2.2` (per-metric median of 3 runs, each computed independently — not one "representative" run; full per-run table in `docs/evaluation.md`):
 
 | Metric | Measured value |
 | --- | ---: |
-| Sustained throughput | `~17,200` events/sec |
-| Sustained throughput | `~9.7` Mbps |
-| Event processing latency P50 / P95 / P99 | `0.018` / `0.029` / `0.321` ms |
-| Alert latency P50 / P95 / P99 (event acceptance through actual JSON serialization + write/flush into a real, drained OS pipe) | `0.716` / `0.897` / `0.943` ms |
-| CPU, replay process + Zeek child | `1.15` s + `0.69` s = `~1.84` s combined |
-| Peak RSS, replay process + Zeek child | `~138.8` MiB + `~126.6` MiB ≈ `265.3` MiB combined (upper bound) |
+| Sustained throughput | `~13,200` events/sec |
+| Sustained throughput | `~5.7` Mbps |
+| Event processing latency P50 / P95 / P99 | `0.023` / `0.041` / `0.314` ms |
+| Alert latency P50 / P95 / P99 (event acceptance through actual JSON serialization + write/flush into a real, drained OS pipe) | `0.802` / `1.077` / `1.127` ms |
+| CPU, replay process + Zeek child | `1.52` s + `0.88` s = `~2.40` s combined |
+| Peak RSS, replay process + Zeek child | `~138.8` MiB + `~126.8` MiB ≈ `265.6` MiB combined (upper bound) |
 
-This is one-replay measurement across both the Python detector process and its native Zeek child, over 51 alert observations; it is not a live-capture, multi-core, production-traffic-mix, or large-scale tail-latency claim, and combined peak RSS is an upper bound since the two processes need not peak simultaneously. See `docs/evaluation.md` for the exact per-run table and scope limitations.
+This is one-replay measurement across both the Python detector process and its native Zeek child, over 51 alert observations; it is not a live-capture, multi-core, production-traffic-mix, or large-scale tail-latency claim, and combined peak RSS is an upper bound since the two processes need not peak simultaneously. Mbps is computed from actual traffic bytes (summed captured Ethernet frame lengths), not the pcap file size, which also counts capture-format header overhead (a PR #5 review finding). This session ran under heavier background host contention than an earlier session that measured `~17,200` events/sec / `1.84` s CPU on the same fixture and hardware; peak RSS was essentially unchanged (`~265` MiB either way). See `docs/evaluation.md` for the exact per-run table, the contention disclosure, and scope limitations.
 
 ## Demo Commands
 

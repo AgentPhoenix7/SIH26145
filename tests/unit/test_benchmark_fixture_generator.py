@@ -43,6 +43,12 @@ def test_benchmark_manifest_matches_capture(tmp_path: Path) -> None:
     assert manifest["capture_sha256"] == hashlib.sha256(capture.read_bytes()).hexdigest()
     assert manifest["packet_count"] == len(packets)
     assert manifest["expected_processed_events"] == len(packets)
+    assert manifest["capture_bytes"] == len(capture.read_bytes())
+    # `total_captured_bytes` must be the actual traffic (summed Ethernet frame
+    # lengths), not the pcap file size, which also counts the 24-byte global
+    # header plus a 16-byte record header per packet.
+    assert manifest["total_captured_bytes"] == sum(len(frame) for _, _, frame in packets)
+    assert manifest["total_captured_bytes"] < manifest["capture_bytes"]
     by_class = manifest["expected_alert_count_by_class"]
     assert by_class["PORT_SCAN"] == PORT_SCAN_INCIDENTS
     assert by_class["SYN_FLOOD"] == SYN_FLOOD_INCIDENTS

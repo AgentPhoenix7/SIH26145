@@ -379,6 +379,7 @@ class BenchmarkReport:
 
     pcap_path: str
     pcap_bytes: int
+    traffic_bytes: int
     events_processed: int
     alerts_emitted: int
     wall_clock_seconds: float
@@ -405,11 +406,17 @@ class BenchmarkReport:
             "schema_version": "benchmark_report_v1",
             "pcap_path": self.pcap_path,
             "pcap_bytes": self.pcap_bytes,
+            "traffic_bytes": self.traffic_bytes,
             "events_processed": self.events_processed,
             "alerts_emitted": self.alerts_emitted,
             "wall_clock_seconds": self.wall_clock_seconds,
             "throughput": {
                 "events_per_second": self.events_per_second,
+                # Computed from `traffic_bytes` (summed captured Ethernet frame
+                # lengths from the fixture's own manifest), not `pcap_bytes` (the
+                # pcap *file* size), which also counts the 24-byte global header
+                # plus a 16-byte record header per packet -- capture-format
+                # overhead unrelated to network traffic volume.
                 "megabits_per_second": self.megabits_per_second,
             },
             "event_processing_latency": self.event_latency.as_dict(),
@@ -505,6 +512,13 @@ def _measure_replay(pcap_path: Path, manifest: dict[str, Any]) -> BenchmarkRepor
     children_after = resource.getrusage(resource.RUSAGE_CHILDREN)
 
     pcap_bytes = pcap_path.stat().st_size
+    # `pcap_bytes` (the pcap *file* size) includes the 24-byte global header plus
+    # a 16-byte record header per packet -- capture-format overhead, not network
+    # traffic. `traffic_bytes` is the fixture's own manifest-recorded sum of
+    # captured Ethernet frame lengths, computed once by the trusted generator
+    # (see tools/generate_benchmark_fixture.py's `_manifest`), and is what Mbps
+    # is actually computed from.
+    traffic_bytes: int = manifest["total_captured_bytes"]
     event_durations = [sample.duration_seconds for sample in collected.samples]
     event_latency = _latency_stats(event_durations)
     if event_latency is None:
@@ -515,11 +529,14 @@ def _measure_replay(pcap_path: Path, manifest: dict[str, Any]) -> BenchmarkRepor
     return BenchmarkReport(
         pcap_path=str(pcap_path),
         pcap_bytes=pcap_bytes,
+        traffic_bytes=traffic_bytes,
         events_processed=result.events_processed,
         alerts_emitted=result.alerts_emitted,
         wall_clock_seconds=elapsed,
         events_per_second=result.events_processed / elapsed if elapsed > 0 else float("inf"),
-        megabits_per_second=(pcap_bytes * 8 / 1_000_000) / elapsed if elapsed > 0 else float("inf"),
+        megabits_per_second=(
+            (traffic_bytes * 8 / 1_000_000) / elapsed if elapsed > 0 else float("inf")
+        ),
         event_latency=event_latency,
         alert_latency=_latency_stats(collected.alert_latencies_seconds),
         python_cpu_user_seconds=self_after.ru_utime - self_before.ru_utime,

@@ -379,6 +379,9 @@ def _dga_domain_names(packets: Sequence[Packet]) -> tuple[str, ...]:
     )
 
 
+_PCAP_RECORD_HEADER_BYTES = 16  # struct.pack("<IIII", ts_sec, ts_usec, incl_len, orig_len)
+
+
 def _manifest(packets: Sequence[Packet], capture: bytes) -> bytes:
     counts = _counts(packets)
     dga_domains = _dga_domain_names(packets)
@@ -386,6 +389,12 @@ def _manifest(packets: Sequence[Packet], capture: bytes) -> bytes:
     source_ips = sorted({packet.source_ip for packet in packets}, key=_ip_sort_key)
     destination_ips = sorted({packet.destination_ip for packet in packets}, key=_ip_sort_key)
     destination_ports = sorted({packet.destination_port for packet in packets})
+    # The pcap file adds a 24-byte global header plus a 16-byte record header per
+    # packet on top of each captured Ethernet frame; subtracting that fixed
+    # overhead gives the actual traffic byte count for a Mbps figure, distinct
+    # from `len(capture)` (the pcap *file* size, still recorded separately below).
+    header_overhead = len(PCAP_GLOBAL_HEADER) + len(packets) * _PCAP_RECORD_HEADER_BYTES
+    total_captured_bytes = len(capture) - header_overhead
     manifest: dict[str, Any] = {
         "schema_version": "fixture_manifest_v1",
         "generator": "tools/generate_benchmark_fixture.py",
@@ -431,6 +440,8 @@ def _manifest(packets: Sequence[Packet], capture: bytes) -> bytes:
             "destination_ports": destination_ports,
         },
         "packet_count": len(packets),
+        "capture_bytes": len(capture),
+        "total_captured_bytes": total_captured_bytes,
         "capture_sha256": hashlib.sha256(capture).hexdigest(),
         "provenance": {
             "kind": "locally_generated_documentation_ranges",
