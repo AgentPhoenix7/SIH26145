@@ -88,8 +88,9 @@ from typing import Any, TextIO
 from sih26145.contracts.alerts import AlertV1
 from sih26145.detection.pipeline import DetectionPipeline
 from sih26145.detection.port_scan import PortScanDetector, ScanConfig
+from sih26145.detection.scan_window import StateLimitExceeded
 from sih26145.detection.syn_flood import SynFloodConfig, SynFloodDetector
-from sih26145.replay import ReplayResult, run_replay
+from sih26145.replay import ReplayError, ReplayResult, run_replay
 from sih26145.runtime import build_detection_pipeline
 
 DEFAULT_PCAP = Path("tests/fixtures/benchmark/sustained_load.pcap")
@@ -178,6 +179,19 @@ def _validate_pcap_matches_generated_fixture(pcap_path: Path) -> bytes:
     return json.dumps(info["manifest"], sort_keys=True).encode("utf-8")
 
 
+# Matches this codebase's own largest existing hard state cap (SynFloodState's
+# global event limit, see docs/architecture.md). Bounds the per-event bookkeeping
+# lists below regardless of how a candidate pcap/manifest reached this process --
+# including the internal ``--worker-manifest`` entry point, which trusts the
+# manifest it is given without re-deriving it from the generator itself (doing so
+# would require spawning that generator as a reaped child of this same worker,
+# which would corrupt the Zeek RSS/CPU figures measured via RUSAGE_CHILDREN; see
+# run_benchmark's docstring). A caller invoking that internal flag directly with
+# an arbitrarily large pcap and a matching but unvalidated manifest is therefore
+# still bounded here, independent of manifest trust.
+_MAX_MEASURED_EVENTS = 100_000
+
+
 @dataclass(slots=True)
 class EventSample:
     """One event's processing duration and the alerts it produced."""
@@ -224,6 +238,8 @@ class TimingPipeline(DetectionPipeline):
         object.__setattr__(self, "_clock", clock)
 
     def process(self, event: Any) -> tuple[AlertV1, ...]:
+        if len(self._samples) >= _MAX_MEASURED_EVENTS:
+            raise StateLimitExceeded("benchmark_measured_events")
         start = time.perf_counter()
         self._clock.pending_start = start
         alerts = super().process(event)
@@ -589,13 +605,29 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _run_worker(pcap_path: Path, manifest_path: Path) -> int:
-    """Entry point for the isolated worker subprocess ``run_benchmark`` spawns."""
+    """Entry point for the isolated worker subprocess ``run_benchmark`` spawns.
+
+    Trusts ``manifest_path`` and ``pcap_path`` as already validated by its
+    caller rather than re-deriving them from the generator itself (which
+    would corrupt the Zeek RSS/CPU figures this process measures -- see the
+    module docstring). ``TimingPipeline.process`` still enforces a hard
+    ``_MAX_MEASURED_EVENTS`` cap regardless of that trust, so a direct
+    invocation of this internal flag with an arbitrarily large pcap and an
+    unvalidated but matching manifest cannot grow this process's bookkeeping
+    lists without bound.
+    """
 
     manifest = json.loads(manifest_path.read_text())
     try:
         report = _measure_replay(pcap_path, manifest)
     except UnexpectedReplayResultError as exc:
         print(f"replay_error: {exc}", file=sys.stderr)
+        return 1
+    except ReplayError as exc:
+        print(f"replay_error: {exc.diagnostic}", file=sys.stderr)
+        return 1
+    except StateLimitExceeded as exc:
+        print(f"state_limit_exceeded: {exc.limit_name}", file=sys.stderr)
         return 1
     print(json.dumps(report.as_dict()))
     return 0

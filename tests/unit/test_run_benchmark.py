@@ -6,10 +6,12 @@ from pathlib import Path
 
 import pytest
 
+import tools.run_benchmark as run_benchmark_module
 from sih26145.contracts.alerts import AlertV1
 from sih26145.detection.dga import DgaDetector
 from sih26145.detection.pipeline import DetectionPipeline
 from sih26145.detection.port_scan import PortScanDetector, ScanConfig
+from sih26145.detection.scan_window import StateLimitExceeded
 from sih26145.detection.syn_flood import SynFloodConfig, SynFloodDetector
 from sih26145.ml.dga_model import DgaModel
 from sih26145.replay import ReplayResult
@@ -91,6 +93,28 @@ def test_timing_pipeline_preserves_alert_validity() -> None:
 
     assert len(alerts) == 1
     assert isinstance(alerts[0], AlertV1)
+
+
+def test_timing_pipeline_enforces_a_hard_event_cap_regardless_of_manifest_trust(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The --worker-manifest entry point trusts its manifest without re-deriving
+    it from the generator (doing so would corrupt the isolated Zeek RSS/CPU
+    measurement -- see the module docstring), so this cap must hold even for a
+    direct invocation of that internal flag with an arbitrarily large pcap."""
+
+    monkeypatch.setattr(run_benchmark_module, "_MAX_MEASURED_EVENTS", 2)
+    samples: list[EventSample] = []
+    timing_pipeline, _clock = _timing_pipeline(samples)
+
+    timing_pipeline.process(syn(ts=1_700_000_000.0, uid="c1", src_port=40_001))
+    timing_pipeline.process(syn(ts=1_700_000_000.0, uid="c2", src_port=40_002))
+
+    with pytest.raises(StateLimitExceeded, match="benchmark_measured_events"):
+        timing_pipeline.process(syn(ts=1_700_000_000.0, uid="c3", src_port=40_003))
+
+    # The rejected event must not have been counted before the check tripped.
+    assert len(samples) == 2
 
 
 def test_emit_alert_measures_from_process_start_through_actual_serialization() -> None:
