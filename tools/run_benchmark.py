@@ -138,7 +138,7 @@ def _generator_fixture_info() -> dict[str, Any]:
     return info
 
 
-def _validate_pcap_matches_generated_fixture(pcap_path: Path) -> bytes:
+def _validate_pcap_matches_generated_fixture(pcap_path: Path, dest_path: Path) -> bytes:
     """Reject any PCAP that isn't exactly what the generator currently produces.
 
     Trust is anchored to the deterministic generator's own current output,
@@ -147,6 +147,19 @@ def _validate_pcap_matches_generated_fixture(pcap_path: Path) -> bytes:
     ``stat`` before any of its bytes are read, and its digest is computed by
     streaming fixed-size chunks rather than loading the whole file at once,
     so this cannot be used to load an arbitrarily large file into memory.
+
+    Every chunk read from ``pcap_path`` while computing that digest is also
+    written to ``dest_path``, so ``dest_path`` ends up holding exactly the
+    bytes this function validated -- not merely "whatever is at
+    ``pcap_path`` right now". Without this, ``pcap_path`` could be replaced
+    (a retargeted symlink, a swapped file) after this function returns but
+    before the worker subprocess later opens it for replay, letting an
+    alternate capture that happens to match the fixture's event/alert
+    counts pass verification while its Mbps is computed from the *original*
+    fixture's ``total_captured_bytes`` -- invalid benchmark evidence.
+    Callers must replay ``dest_path``, not ``pcap_path``, for this guarantee
+    to hold.
+
     Returns the manifest JSON bytes (re-serialized from the generator's
     subprocess output) for the caller to parse.
     """
@@ -167,9 +180,10 @@ def _validate_pcap_matches_generated_fixture(pcap_path: Path) -> bytes:
         )
 
     digest = hashlib.sha256()
-    with pcap_path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(_READ_CHUNK_BYTES), b""):
+    with pcap_path.open("rb") as source, dest_path.open("wb") as dest:
+        for chunk in iter(lambda: source.read(_READ_CHUNK_BYTES), b""):
             digest.update(chunk)
+            dest.write(chunk)
     if digest.hexdigest() != expected_sha256:
         raise UnvalidatedPcapError(
             f"{pcap_path} does not match the bytes tools.generate_benchmark_fixture "
@@ -575,19 +589,33 @@ def run_benchmark(pcap_path: Path) -> dict[str, Any]:
 
     1. ``_validate_pcap_matches_generated_fixture`` runs the fixture
        generator in its own throwaway subprocess to get a trusted
-       size/digest/manifest for ``pcap_path`` (see that function).
+       size/digest/manifest for ``pcap_path``, and copies the exact bytes
+       it validates into a private temporary file as it streams them for
+       hashing (see that function).
     2. This function then spawns a second, fresh worker subprocess (this
        same script, re-invoked with ``--worker-manifest``) that performs
        only ``_measure_replay`` -- it never calls the generator itself, so
        its own ``RUSAGE_SELF``/``RUSAGE_CHILDREN`` samples cannot be
        polluted by the generator's ~21,431-packet object graph the way a
        single shared process would be.
+
+    Critically, that worker subprocess is pointed at the private validated
+    copy, not at the original ``pcap_path``: if it replayed ``pcap_path``
+    directly, a caller-controlled path could be replaced (a retargeted
+    symlink, a swapped file) after validation completes but before the
+    worker opens it, letting an alternate capture with the same event and
+    per-class alert counts pass the result checks while its Mbps is still
+    computed from the *original* fixture's ``total_captured_bytes`` --
+    invalid benchmark evidence. Copying the validated bytes into a path
+    only this process created closes that window entirely: what was
+    validated and what gets replayed are, by construction, the same bytes.
     """
 
-    manifest_bytes = _validate_pcap_matches_generated_fixture(pcap_path)
-    manifest = json.loads(manifest_bytes.decode("utf-8"))
-
     with tempfile.TemporaryDirectory() as tmp_dir:
+        validated_pcap_path = Path(tmp_dir) / "validated.pcap"
+        manifest_bytes = _validate_pcap_matches_generated_fixture(pcap_path, validated_pcap_path)
+        manifest = json.loads(manifest_bytes.decode("utf-8"))
+
         manifest_path = Path(tmp_dir) / "manifest.json"
         manifest_path.write_text(json.dumps(manifest))
         result = subprocess.run(
@@ -595,7 +623,7 @@ def run_benchmark(pcap_path: Path) -> dict[str, Any]:
                 sys.executable,
                 str(Path(__file__).resolve()),
                 "--pcap",
-                str(pcap_path),
+                str(validated_pcap_path),
                 "--worker-manifest",
                 str(manifest_path),
             ],
@@ -615,6 +643,10 @@ def run_benchmark(pcap_path: Path) -> dict[str, Any]:
             f"benchmark worker subprocess exited {result.returncode}: {stderr}"
         )
     payload: dict[str, Any] = json.loads(result.stdout)
+    # Report the path the caller supplied, not the private validated copy the
+    # worker actually replayed internally -- they hold identical bytes (see
+    # _validate_pcap_matches_generated_fixture), so this is purely cosmetic.
+    payload["pcap_path"] = str(pcap_path)
     return payload
 
 

@@ -190,13 +190,22 @@ def test_validate_pcap_matches_generated_fixture_accepts_the_real_generated_byte
     tmp_path: Path,
 ) -> None:
     pcap_path = tmp_path / "sustained_load.pcap"
-    pcap_path.write_bytes(_benchmark_artifacts()["sustained_load.pcap"])
+    real_bytes = _benchmark_artifacts()["sustained_load.pcap"]
+    pcap_path.write_bytes(real_bytes)
+    dest_path = tmp_path / "validated.pcap"
 
-    manifest_bytes = _validate_pcap_matches_generated_fixture(pcap_path)  # must not raise
+    # must not raise
+    manifest_bytes = _validate_pcap_matches_generated_fixture(pcap_path, dest_path)
 
     assert json.loads(manifest_bytes) == json.loads(
         _benchmark_artifacts()["sustained_load.manifest.json"]
     )
+    # The validated bytes must be copied to dest_path, byte-for-byte, as they
+    # are streamed for hashing -- see the TOCTOU rationale in the function's
+    # own docstring: this is what lets a caller replay dest_path instead of
+    # pcap_path, closing the window where pcap_path could be swapped between
+    # validation completing and replay actually starting.
+    assert dest_path.read_bytes() == real_bytes
 
 
 def test_validate_pcap_matches_generated_fixture_rejects_a_larger_arbitrary_capture(
@@ -210,7 +219,7 @@ def test_validate_pcap_matches_generated_fixture_rejects_a_larger_arbitrary_capt
     pcap_path.write_bytes(b"\x00" * (expected_size + 1))
 
     with pytest.raises(UnvalidatedPcapError, match="bytes"):
-        _validate_pcap_matches_generated_fixture(pcap_path)
+        _validate_pcap_matches_generated_fixture(pcap_path, tmp_path / "validated.pcap")
 
 
 def test_validate_pcap_matches_generated_fixture_rejects_same_size_wrong_content(
@@ -222,12 +231,14 @@ def test_validate_pcap_matches_generated_fixture_rejects_same_size_wrong_content
     pcap_path.write_bytes(b"\xff" * len(expected_bytes))
 
     with pytest.raises(UnvalidatedPcapError, match="does not match"):
-        _validate_pcap_matches_generated_fixture(pcap_path)
+        _validate_pcap_matches_generated_fixture(pcap_path, tmp_path / "validated.pcap")
 
 
 def test_validate_pcap_matches_generated_fixture_rejects_a_missing_file(tmp_path: Path) -> None:
     with pytest.raises(UnvalidatedPcapError, match="cannot stat"):
-        _validate_pcap_matches_generated_fixture(tmp_path / "does_not_exist.pcap")
+        _validate_pcap_matches_generated_fixture(
+            tmp_path / "does_not_exist.pcap", tmp_path / "validated.pcap"
+        )
 
 
 def test_run_benchmark_does_not_import_the_generator_object_graph_in_process() -> None:
