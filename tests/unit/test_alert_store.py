@@ -7,7 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from sih26145.alert_store import AlertStore
-from sih26145.contracts.alerts import AlertV1
+from sih26145.contracts.alerts import AlertV1, PortScanEvidence
 from tests.unit.test_alert_contracts import valid_alert_payload
 
 
@@ -37,6 +37,29 @@ def test_store_rejects_invalid_alert_without_mutation() -> None:
 
     with pytest.raises(ValidationError):
         store.add({"schema_version": "alert_v1", "confidence": 2.0})
+
+    assert store.snapshot() == ()
+
+
+def test_store_revalidates_mutated_alert_instance_before_insertion() -> None:
+    store = AlertStore(capacity=2)
+    invalid = alert("invalid")
+    invalid.confidence = 2.0
+
+    with pytest.raises(ValidationError):
+        store.add(invalid)
+
+    assert store.snapshot() == ()
+
+
+def test_store_revalidates_nested_mutation_before_insertion() -> None:
+    store = AlertStore(capacity=2)
+    invalid = alert("invalid")
+    assert isinstance(invalid.evidence, PortScanEvidence)
+    invalid.evidence.deduplicated_attempts = 0
+
+    with pytest.raises(ValidationError):
+        store.add(invalid)
 
     assert store.snapshot() == ()
 

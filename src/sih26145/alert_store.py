@@ -30,7 +30,11 @@ class AlertStore:
     def add(self, alert: object) -> None:
         """Validate and append one alert, evicting the oldest at capacity."""
 
-        validated = AlertV1.model_validate(alert)
+        validated = (
+            AlertV1.model_validate_json(alert.model_dump_json())
+            if isinstance(alert, AlertV1)
+            else AlertV1.model_validate(alert)
+        )
         with self._lock:
             self._alerts.append(validated.model_copy(deep=True))
 

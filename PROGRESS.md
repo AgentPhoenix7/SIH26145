@@ -40,6 +40,9 @@ Last updated: **2026-08-30 (UTC)**
 - The AnyIO static-file regression was observed failing with `FileResponse`; fixed package assets now return from async in-memory responses. Its focused regression, 10 API integration tests, strict mypy, and the pre-review full `339 passed in 18.29s` suite passed.
 - Final read-only review reproduced two boundary defects: caller mutation could change stored alerts after validation, and a cross-origin webpage could trigger a bodyless loopback replay POST. New regressions failed first; the store now deep-copies at ingress/egress and replay mutation requires a non-safelisted fixed action header.
 - Post-review verification reported `21 passed in 2.57s` for the Milestone 4 focused command and `342 passed in 18.21s` for the full suite; the final browser action, Ruff, strict mypy, fixtures, and rebuilt wheel also passed.
+- PR-preparation review reproduced two remaining boundaries: a model mutated before insertion could bypass instance validation, and a DNS-rebinding Host could bypass the action-header defense. Regression-first fixes now revalidate existing models through strict JSON, accept only the `127.0.0.1` Host, reject foreign browser Origins, and prove approved-fixture symlinks cannot escape the repository root.
+- Post-PR-preparation verification reported `26 passed in 3.21s` for the focused Milestone 4 command and `347 passed in 19.08s` for the full suite; locked sync, Ruff lint/format, strict mypy, all three fixture checks, and `git diff --check` also passed.
+- A real loopback HTTP check returned `200` for alert listing, `400` for a hostile Host, `403` for a hostile Origin with the action header, and `200` with zero alerts for an actual same-origin benign DGA replay. The final sdist and wheel rebuild also passed.
 
 ### Implemented but Not Verified
 
@@ -226,9 +229,9 @@ Milestone 3 adds:
 
 Milestone 4 adds:
 
-- A strict thread-safe `AlertStore` with capacity 100, oldest-first eviction, newest-first bounded snapshots, validation before mutation, and deep-copy isolation at ingress/egress.
+- A strict thread-safe `AlertStore` with capacity 100, oldest-first eviction, newest-first bounded snapshots, serialized revalidation of existing model instances before mutation, and deep-copy isolation at ingress/egress.
 - A shared runtime factory used by both the existing CLI and the API, preserving one detector/replay path and existing CLI JSONL behavior.
-- A loopback FastAPI entrypoint with `GET /api/alerts?limit=1..100` and guarded `POST /api/replays/{fixture_id}` for seven code-owned committed fixtures only. The fixed non-safelisted action header prevents cross-origin webpages from triggering the mutation without a denied preflight.
+- A loopback FastAPI entrypoint with `GET /api/alerts?limit=1..100` and guarded `POST /api/replays/{fixture_id}` for seven code-owned committed fixtures only. The fixed non-safelisted action header prevents ordinary cross-origin mutation without a denied preflight; trusted-host and Origin checks close the DNS-rebinding path.
 - One synchronous replay coordinator that feeds the existing callback directly into the store and returns fixed safe errors without exposing child diagnostics.
 - A package-local static HTML/CSS/JavaScript dashboard with no frontend dependency or build step, same-origin requests, at most 50 rows, non-overlapping polling, replay-time polling pause, text-only DOM assignment, responsive geometry, and explicit unsupported-coverage labels.
 - Actual empty and three-alert screenshots after desktop and narrow browser inspection.

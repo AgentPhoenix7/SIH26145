@@ -46,7 +46,7 @@ def anyio_backend() -> str:
 def http_client(app: object) -> AsyncClient:
     return AsyncClient(
         transport=ASGITransport(app=app),  # type: ignore[arg-type]
-        base_url="http://testserver",
+        base_url="http://127.0.0.1:8000",
     )
 
 
@@ -98,7 +98,7 @@ async def test_approved_replay_uses_existing_pipeline_callback_and_stores_alert(
     async with http_client(api.create_app(fixture_root=tmp_path)) as client:
         response = await client.post(
             "/api/replays/port-scan-alert",
-            headers=REPLAY_HEADERS,
+            headers={**REPLAY_HEADERS, "Origin": "http://127.0.0.1:8000"},
         )
         stored = (await client.get("/api/alerts")).json()["alerts"]
 
@@ -166,6 +166,47 @@ async def test_replay_requires_browser_preflight_header(
     assert response.json() == {"detail": "replay_action_required"}
 
 
+@pytest.mark.anyio
+async def test_replay_rejects_host_outside_loopback_origin(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture_file(tmp_path, api.FixtureId.DGA_BENIGN)
+
+    def fake_replay(*_args: object, **_kwargs: object) -> ReplayResult:
+        return ReplayResult(events_processed=1, alerts_emitted=0, last_event_ts=100.0)
+
+    monkeypatch.setattr(api, "run_replay", fake_replay)
+    async with http_client(api.create_app(fixture_root=tmp_path)) as client:
+        response = await client.post(
+            "/api/replays/dga-benign",
+            headers={**REPLAY_HEADERS, "Host": "evil.example:8000"},
+        )
+
+    assert response.status_code == 400
+
+
+@pytest.mark.anyio
+async def test_replay_rejects_cross_origin_even_with_action_header(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture_file(tmp_path, api.FixtureId.DGA_BENIGN)
+
+    def fake_replay(*_args: object, **_kwargs: object) -> ReplayResult:
+        return ReplayResult(events_processed=1, alerts_emitted=0, last_event_ts=100.0)
+
+    monkeypatch.setattr(api, "run_replay", fake_replay)
+    async with http_client(api.create_app(fixture_root=tmp_path)) as client:
+        response = await client.post(
+            "/api/replays/dga-benign",
+            headers={**REPLAY_HEADERS, "Origin": "https://evil.example"},
+        )
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "replay_origin_forbidden"}
+
+
 def test_coordinator_rejects_concurrent_replay(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -196,6 +237,24 @@ def test_coordinator_rejects_concurrent_replay(
         worker.join(timeout=2.0)
 
     assert not worker.is_alive()
+
+
+def test_coordinator_rejects_approved_symlink_that_escapes_fixture_root(
+    tmp_path: Path,
+) -> None:
+    outside = tmp_path.parent / f"{tmp_path.name}-outside.pcap"
+    outside.write_bytes(b"outside fixture root")
+    relative = api.APPROVED_FIXTURES[api.FixtureId.DGA_BENIGN]
+    fixture = tmp_path / relative
+    fixture.parent.mkdir(parents=True, exist_ok=True)
+    fixture.symlink_to(outside)
+    coordinator = api.ReplayCoordinator(
+        store=AlertStore(capacity=100),
+        fixture_root=tmp_path,
+    )
+
+    with pytest.raises(api.FixtureUnavailable):
+        coordinator.run(api.FixtureId.DGA_BENIGN)
 
 
 def test_server_entrypoint_binds_to_loopback(

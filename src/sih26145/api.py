@@ -11,6 +11,7 @@ import uvicorn
 from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import Field
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from sih26145.alert_store import AlertStore
 from sih26145.contracts.alerts import AlertV1
@@ -25,6 +26,8 @@ from sih26145.runtime import build_detection_pipeline
 ALERT_STORE_CAPACITY = 100
 DEFAULT_ALERT_LIMIT = 50
 REPLAY_ACTION_VALUE = "run-approved-fixture"
+LOOPBACK_HOST = "127.0.0.1"
+LOOPBACK_ORIGIN = "http://127.0.0.1:8000"
 DASHBOARD_DIR = Path(__file__).with_name("dashboard")
 DASHBOARD_HTML = (DASHBOARD_DIR / "index.html").read_bytes()
 DASHBOARD_CSS = (DASHBOARD_DIR / "dashboard.css").read_bytes()
@@ -135,6 +138,7 @@ def create_app(
         fixture_root=fixture_root or Path.cwd(),
     )
     app = FastAPI(title="SIH26145 Local Detection Dashboard", docs_url=None, redoc_url=None)
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=[LOOPBACK_HOST])
 
     @app.get("/", response_class=Response, include_in_schema=False)
     async def dashboard() -> Response:
@@ -167,9 +171,12 @@ def create_app(
             str | None,
             Header(alias="X-SIH26145-Action"),
         ] = None,
+        origin: Annotated[str | None, Header(alias="Origin")] = None,
     ) -> ReplayResponse:
         if replay_action != REPLAY_ACTION_VALUE:
             raise HTTPException(status_code=403, detail="replay_action_required")
+        if origin is not None and origin != LOOPBACK_ORIGIN:
+            raise HTTPException(status_code=403, detail="replay_origin_forbidden")
         try:
             return coordinator.run(fixture_id)
         except ReplayBusy:
@@ -185,4 +192,4 @@ def create_app(
 def main() -> None:
     """Serve the local dashboard API on loopback only."""
 
-    uvicorn.run(create_app(), host="127.0.0.1", port=8000)
+    uvicorn.run(create_app(), host=LOOPBACK_HOST, port=8000)

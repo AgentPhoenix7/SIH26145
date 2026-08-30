@@ -22,7 +22,7 @@ def anyio_backend() -> str:
 def http_client() -> AsyncClient:
     return AsyncClient(
         transport=ASGITransport(app=create_app(fixture_root=REPOSITORY_ROOT)),
-        base_url="http://testserver",
+        base_url="http://127.0.0.1:8000",
     )
 
 
