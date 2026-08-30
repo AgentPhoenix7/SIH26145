@@ -5,7 +5,10 @@ Last updated: **2026-08-30 (UTC)**
 ## Current Handoff State
 
 - **Date:** 2026-08-30 (UTC)
-- **Current branch:** `main`
+- **Current branch:** `feature/milestone-5-benchmark`
+- **Milestone 5 base commit:** `d8f3fdb` (`docs: record milestone four merge in progress handoff`, on `main`)
+- **Milestone 5 worktree:** `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-5-benchmark`
+- **Milestone 5 baseline verification (2026-08-30):** frozen `uv sync --frozen --group dev` succeeded; `347 passed in 20.09s`; Ruff lint passed; Ruff confirmed 69 files formatted; strict mypy found no issues in 53 source files; all three deterministic fixture checks exited `0`.
 - **Milestone 4 base commit:** `7498634bf2e91a9540197166d876c3e381adee40`
 - **Milestone 4 baseline evidence commit:** `67a78d74d63513affd8a2ac164bbd4d1c505a09a`
 - **Milestone 4 feature commit:** `571c4b1fa13529e659640259aab1475cd05182b3`
@@ -15,9 +18,10 @@ Last updated: **2026-08-30 (UTC)**
 - **Milestone 2 final feature commit:** `7cb1eb513295a844ef8959616631f9f1e8fed531`
 - **Milestone 3 merge commit:** `9fc30e612f4ea5accbd412610b692899b93d4ffc`
 - **Milestone 3 final feature fix:** `d61bec43f6559e6191cb0d64309317844dbcc9a2`
-- **Current milestone:** Milestone 4 — minimal local API, bounded alert storage, and dashboard (**MERGED into `main` at `44c51d88da7d9d1abb574da3775e06832cf5846a` and FROZEN**).
-- **Active milestone branch:** none; `feature/milestone-4-local-api-dashboard` was merged and deleted.
-- **Active milestone worktree:** none; `.worktrees/milestone-4-local-api-dashboard` was removed after merge.
+- **Current milestone:** Milestone 5 — measured end-to-end benchmark (throughput, alert latency, CPU, memory) (**IN PROGRESS**).
+- **Active milestone branch:** `feature/milestone-5-benchmark`
+- **Active milestone worktree:** `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-5-benchmark`
+- **Milestone 4:** minimal local API, bounded alert storage, and dashboard (**MERGED into `main` at `44c51d88da7d9d1abb574da3775e06832cf5846a` and FROZEN**); its branch/worktree were deleted after merge.
 - **Milestone 3 base commit:** `95159b6da04f0ee7ae6b61b3befd941842aac9bc`
 - **Milestone 3 review-fix commit:** `9965de5b85d9d3add72ff417f16ad1f9a7875c19`
 - **Milestone 3 merged pull request:** `https://github.com/AgentPhoenix7/SIH26145/pull/3`
@@ -97,8 +101,9 @@ Last updated: **2026-08-30 (UTC)**
 
 ### Immediate Next Actions
 
-1. Milestone 4 is merged and frozen; do not redesign Milestones 1–4 without a demonstrated regression.
-2. Treat the measured end-to-end benchmark and final submission/PPT rehearsal as the next feature-freeze priorities.
+1. Milestones 1–4 are merged and frozen; do not redesign them without a demonstrated regression.
+2. Implement and measure the Milestone 5 end-to-end benchmark (throughput, alert-latency P50/P95/P99, CPU, memory) on `feature/milestone-5-benchmark`, no new detector or model work.
+3. Merge and freeze Milestone 5, then treat final submission/PPT rehearsal as the last feature-freeze priority.
 
 ### Commands to Resume
 
