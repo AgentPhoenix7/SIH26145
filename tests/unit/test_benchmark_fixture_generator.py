@@ -7,10 +7,15 @@ import subprocess
 import sys
 from pathlib import Path
 
+from sih26145.detection.port_scan import PortScanDetector, ScanConfig
+from sih26145.detection.syn_flood import SynFloodConfig, SynFloodDetector
+from tests.factories import syn
 from tests.unit.test_fixture_generator import parse_packets
 from tools.generate_benchmark_fixture import (
+    BASE_TIMESTAMP,
     PORT_SCAN_INCIDENTS,
     SYN_FLOOD_INCIDENTS,
+    _load_syn_packets,
     check_all,
     generate_all,
 )
@@ -51,6 +56,60 @@ def test_benchmark_manifest_matches_capture(tmp_path: Path) -> None:
         "kind": "locally_generated_documentation_ranges",
         "network_activity": "none",
     }
+
+
+def test_benchmark_load_syn_traffic_stays_below_both_detectors_measured_against_reality() -> None:
+    """Pin the actual measured reason the background load never alerts.
+
+    Reasoning about thresholds by hand has been wrong twice already in
+    this fixture's history (see its docstrings/commit history): once by
+    assuming attempt/event counts alone stayed under the configured
+    minimums, and once by assuming a target's rolling-window event count
+    equalled its total generated event count. Both mistakes are only
+    caught by actually running the real detectors, so this test does
+    exactly that and pins the measured numbers documented in
+    ``docs/evaluation.md`` and this module's docstrings.
+    """
+
+    packets = _load_syn_packets(start_ts=BASE_TIMESTAMP)
+
+    scan_detector = PortScanDetector(config=ScanConfig())
+    flood_detector = SynFloodDetector(config=SynFloodConfig())
+    max_attempts = max_ports = max_hosts = 0
+    max_events = max_sources = 0
+    for index, packet in enumerate(packets):
+        event = syn(
+            ts=packet.timestamp,
+            uid=f"load-{index}",
+            src_ip=packet.source_ip,
+            src_port=packet.source_port,
+            dst_ip=packet.destination_ip,
+            dst_port=packet.destination_port,
+        )
+        assert scan_detector.process(event) is None
+        assert flood_detector.process(event) is None
+        for source_state in scan_detector._window._sources.values():
+            max_attempts = max(max_attempts, len(source_state.attempts))
+            max_ports = max(max_ports, len(source_state.destination_ports))
+            max_hosts = max(max_hosts, len(source_state.destination_hosts))
+        for target_state in flood_detector._window._targets.values():
+            max_events = max(max_events, len(target_state.observations))
+            max_sources = max(max_sources, len(target_state.sources))
+
+    scan_config = ScanConfig()
+    # The rolling-window attempt count exceeds the port-scan minimum; only the
+    # unique-port/unique-host monoculture keeps this traffic from alerting.
+    assert max_attempts == 26
+    assert max_attempts > scan_config.minimum_attempts
+    assert max_ports == 1 < scan_config.minimum_unique_destination_ports
+    assert max_hosts == 1 < scan_config.minimum_unique_destination_hosts
+
+    flood_config = SynFloodConfig()
+    # Both halves of the flood's AND condition fail: the 10-second window
+    # only ever holds part of one target's traffic across the ~20-second
+    # background block, and source diversity per target is also low.
+    assert max_events == 51 < flood_config.minimum_syn_events
+    assert max_sources == 2 < flood_config.minimum_unique_sources
 
 
 def test_benchmark_fixture_timestamps_are_non_decreasing(tmp_path: Path) -> None:

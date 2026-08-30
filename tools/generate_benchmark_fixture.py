@@ -8,11 +8,14 @@ introduces no new detector, model, or protocol behavior.
 The capture mixes:
 
 - a large background of benign SYN traffic that stays below alert
-  threshold by fan-out/source-diversity monoculture (1 destination
-  host/port per source, 2 unique sources per destination) rather than by
-  keeping attempt/event counts low -- those actually reach or exceed the
-  detectors' count thresholds -- to give a meaningful sustained-rate
-  sample without a false alert;
+  threshold primarily by fan-out/source-diversity monoculture (1
+  destination host/port per source, 2 unique sources per destination),
+  not by keeping every count low -- a source's rolling-window attempt
+  count does exceed ``PORT_SCAN``'s minimum, though its per-target event
+  count for ``SYN_FLOOD`` stays below that detector's minimum too, since
+  the window only ever holds about half of one destination's total
+  traffic (see ``_load_syn_packets`` below for the measured numbers) --
+  to give a meaningful sustained-rate sample without a false alert;
 - a background of distinct benign DNS queries, to give a meaningful sample
   of stateless DGA-path latency;
 - ``PORT_SCAN_INCIDENTS`` independent copies of the Milestone 1
@@ -106,20 +109,25 @@ def _load_target_ip(index: int) -> str:
 
 
 def _load_syn_packets(*, start_ts: float) -> tuple[SynPacket, ...]:
-    """Benign background SYN traffic: no alert fires, but not because counts stay low.
+    """Benign background SYN traffic: no alert fires, but not solely because counts stay low.
 
-    Per source: ``LOAD_SYN_EVENTS / LOAD_SOURCE_POOL`` attempts (about 50
-    overall, about 25 within any 10-second window -- above
-    ``PortScanDetector``'s default ``minimum_attempts=20``), all to one
-    fixed port and (because ``LOAD_SOURCE_POOL`` is an exact multiple of
-    ``LOAD_TARGET_POOL``) exactly one destination host, so neither the
-    unique-port nor the unique-host port-scan condition can be reached
-    regardless of attempt count. Per target: ``LOAD_SYN_EVENTS /
-    LOAD_TARGET_POOL`` events (exactly 100 -- at, not below,
-    ``SynFloodDetector``'s default ``minimum_syn_events=100``) from exactly
-    two distinct sources, which *is* below the default
-    ``minimum_unique_sources=20``, so the flood's AND condition fails on
-    source diversity, not event count.
+    Measured by instrumenting the real detectors against this exact
+    traffic (see ``tests/unit/test_benchmark_fixture_generator.py``):
+
+    Per source: up to 26 attempts within any 10-second rolling window --
+    above ``PortScanDetector``'s default ``minimum_attempts=20`` -- all to
+    one fixed port and (because ``LOAD_SOURCE_POOL`` is an exact multiple
+    of ``LOAD_TARGET_POOL``) exactly one destination host, so neither the
+    unique-port (1) nor the unique-host (1) port-scan condition can be
+    reached regardless of attempt count.
+
+    Per target: up to 51 events within any 10-second rolling window --
+    already below ``SynFloodDetector``'s default ``minimum_syn_events=100``
+    on its own, because the 10-second window only ever holds about half of
+    one target's traffic across the roughly 20-second background block --
+    from only 2 distinct sources, also far below the default
+    ``minimum_unique_sources=20``. Both halves of the flood's AND
+    condition fail, not source diversity alone.
     """
 
     return tuple(
