@@ -113,6 +113,21 @@ Native replay of the 124-byte synthetic fixture emitted one 987-byte strict aler
 
 The controlled `example.com` fixture received probability `0.0018385042677530868` and emitted exactly zero bytes. These two fixtures are demonstration evidence, not a production error-rate estimate.
 
+## Actual End-to-End Benchmark Evidence
+
+Deterministic sustained-load replay (`tests/fixtures/benchmark/sustained_load.pcap`: 20,321 events, 1,428,710 bytes, exactly 3 alerts) through the unmodified `DetectionPipeline`, measured on WSL2 Linux, 16 logical CPUs, Python `3.13.15`, Zeek `8.2.2` (median of 3 runs; full per-run table in `docs/evaluation.md`):
+
+| Metric | Measured value |
+| --- | ---: |
+| Sustained throughput | `~14,600` events/sec |
+| Sustained throughput | `~8.2` Mbps |
+| Event processing latency P50 / P95 / P99 | `0.021` / `0.033` / `0.354` ms |
+| Alert latency P50 / P95 / P99 | `0.375` / `0.921` / `0.970` ms |
+| CPU (user + system) | `~1.21` s over the whole replay |
+| Peak RSS | `~140` MiB |
+
+This is single-process, CPU-only, one-replay measurement; it is not a live-capture, multi-core, or production-traffic-mix claim. See `docs/evaluation.md` for the exact per-run table and scope limitations.
+
 ## Demo Commands
 
 ```bash
@@ -127,6 +142,8 @@ uv run sih26145-replay tests/fixtures/milestone2/benign_distributed.pcap
 uv run sih26145-replay tests/fixtures/milestone3/dga_dns.pcap
 uv run sih26145-replay tests/fixtures/milestone3/benign_dns.pcap
 uv run sih26145-dashboard
+uv run python tools/generate_benchmark_fixture.py --output tests/fixtures/benchmark
+uv run python tools/run_benchmark.py --pcap tests/fixtures/benchmark/sustained_load.pcap
 ```
 
 Expected demo behavior: each threshold command prints one compact class-specific alert JSON line; each benign command prints nothing and exits successfully. Native `zeek` must resolve through `PATH`.
@@ -139,10 +156,10 @@ Expected demo behavior: each threshold command prints one compact class-specific
 - How leakage is limited: DGA families, not rows, are held out; benign rows use stable hash buckets; domain overlap is zero. This does not guarantee unseen-family or production generalization.
 - Why evidence first: alerts carry actual triggering UIDs, capture-time windows, thresholds, rates, spans, deterministic samples, plus source fan-out or target/source-distribution evidence as appropriate.
 - How state is safe: hard bounds cover input lines, source/target event windows, UID/cooldown state, stderr retention, and process cleanup. State pressure fails with a named invariant instead of silently discarding evidence.
-- What remains: three untouched classes, UDP reflection/amplification, DNS tunnelling, end-to-end throughput and latency benchmarking, and the final PPT assembly.
+- What remains: three untouched classes, UDP reflection/amplification, DNS tunnelling, and the final PPT assembly.
+- How the benchmark stays honest: it reuses the unmodified `DetectionPipeline`/`run_replay` path, times it with a subclassed proxy rather than a separate code path, mixes benign background load with exact copies of the three already-verified alert fixtures, and reports median-of-3-runs with the full per-run table disclosed.
 
 ## Evidence Still Needed Before Final PPT
 
-- Measured detector/end-to-end P50/P95/P99 latency, sustained traffic rate, CPU, and memory with methodology.
 - Controlled evidence for exfiltration and any later C2/TLS coverage; UDP reflection/amplification and DNS tunnelling remain deferred.
 - Final PPT assembly and demo rehearsal using only the verified evidence above.

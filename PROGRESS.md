@@ -1,6 +1,6 @@
 # SIH26145 Progress and Conversation Handoff
 
-Last updated: **2026-08-30 (UTC)**
+Last updated: **2026-08-30 (UTC)**, Milestone 5 implementation slice
 
 ## Current Handoff State
 
@@ -18,7 +18,7 @@ Last updated: **2026-08-30 (UTC)**
 - **Milestone 2 final feature commit:** `7cb1eb513295a844ef8959616631f9f1e8fed531`
 - **Milestone 3 merge commit:** `9fc30e612f4ea5accbd412610b692899b93d4ffc`
 - **Milestone 3 final feature fix:** `d61bec43f6559e6191cb0d64309317844dbcc9a2`
-- **Current milestone:** Milestone 5 — measured end-to-end benchmark (throughput, alert latency, CPU, memory) (**IN PROGRESS**).
+- **Current milestone:** Milestone 5 — measured end-to-end benchmark (throughput, alert latency, CPU, memory) (**IMPLEMENTED + TESTED**; PR/merge/freeze not yet done).
 - **Active milestone branch:** `feature/milestone-5-benchmark`
 - **Active milestone worktree:** `/home/agntdrgn/WorkSpace/SIH26145/.worktrees/milestone-5-benchmark`
 - **Milestone 4:** minimal local API, bounded alert storage, and dashboard (**MERGED into `main` at `44c51d88da7d9d1abb574da3775e06832cf5846a` and FROZEN**); its branch/worktree were deleted after merge.
@@ -54,16 +54,17 @@ Last updated: **2026-08-30 (UTC)**
 
 ### Implemented but Not Verified
 
-- End-to-end throughput, CPU, memory, and alert-latency benchmark work remains unimplemented and unverified.
+- None outstanding for Milestone 5; the benchmark tooling, fixture, and measured evidence below are implemented and verified by actual command execution. PR/merge/freeze is the remaining step.
 
 ### In Progress
 
-- None. PR #4 merged into `main` at `44c51d88da7d9d1abb574da3775e06832cf5846a` on 2026-08-30T12:31:46Z; Milestone 4 is frozen. `main` also carries one post-merge documentation commit, `7a7e870` (`CLAUDE.md` added as a symlink to `AGENTS.md`), and matches `origin/main`.
+- Milestone 5 (this worktree): implementation, tests, and full verification gate complete. Not yet reviewed, PR'd, merged, or frozen. PR #4 previously merged into `main` at `44c51d88da7d9d1abb574da3775e06832cf5846a` on 2026-08-30T12:31:46Z; Milestone 4 is frozen. `main` also carries one post-merge documentation commit, `7a7e870` (`CLAUDE.md` added as a symlink to `AGENTS.md`).
 
 ### Known Problems
 
-- UDP reflection/amplification, DNS tunnelling, and end-to-end benchmarking are not implemented.
+- UDP reflection/amplification and DNS tunnelling are not implemented.
 - Demonstrated detector coverage spans three of six named classes, but DDoS is limited to SYN floods and DNS coverage to DGA lexical classification; no full-coverage claim is valid.
+- The Milestone 5 benchmark is single-process/single-replay/CPU-only and excludes the separate native Zeek child process and API/dashboard polling latency; see `docs/evaluation.md` for full scope limitations.
 
 ### Deferred
 
@@ -92,7 +93,7 @@ Last updated: **2026-08-30 (UTC)**
 
 ### Benchmark State
 
-- End-to-end throughput, CPU, memory, and wall-clock alert-latency percentiles are unmeasured. Model-only batch inference measured `2.340909655567489` microseconds/domain (`427184.36297686916` domains/second) and must not be presented as pipeline throughput.
+- Milestone 5 measured end-to-end sustained-replay throughput, alert latency, CPU, and memory: `tools/generate_benchmark_fixture.py` deterministically builds a 20,321-event / 1,428,710-byte PCAP (20,000+ benign background SYN/DNS events below every configured threshold, plus one exact copy each of the verified Milestone 1 port-scan, Milestone 2 SYN-flood, and Milestone 3 DGA threshold patterns); `tools/run_benchmark.py` times the unmodified `DetectionPipeline`/`run_replay` path via a `TimingPipeline` subclass. Three runs on WSL2 Linux (16 logical CPUs, Python `3.13.15`, Zeek `8.2.2`) each produced exactly 3 alerts and measured `13,299`-`14,705` events/sec (`7.48`-`8.27` Mbps), event-processing-latency P50/P95/P99 of roughly `0.02`/`0.03`/`0.35`-`0.47` ms, alert-latency P50/P95/P99 of roughly `0.35`-`0.42`/`0.89`-`0.93`/`0.94`-`0.98` ms, `1.08`-`1.28` s total CPU (user+system), and `~140` MiB peak RSS. Full per-run table, method, and scope limitations are in `docs/evaluation.md`. Model-only batch inference measured separately at `2.340909655567489` microseconds/domain (`427184.36297686916` domains/second) and is not pipeline throughput.
 
 ### SIH Compliance State
 
@@ -102,8 +103,8 @@ Last updated: **2026-08-30 (UTC)**
 ### Immediate Next Actions
 
 1. Milestones 1–4 are merged and frozen; do not redesign them without a demonstrated regression.
-2. Implement and measure the Milestone 5 end-to-end benchmark (throughput, alert-latency P50/P95/P99, CPU, memory) on `feature/milestone-5-benchmark`, no new detector or model work.
-3. Merge and freeze Milestone 5, then treat final submission/PPT rehearsal as the last feature-freeze priority.
+2. Milestone 5 (this worktree) is implemented, tested, and gate-verified. Review, PR, merge, and freeze it.
+3. After merge, treat final submission/PPT rehearsal as the last feature-freeze priority (2026-08-30 is feature freeze; 2026-08-31 is reserved for verification/demo/PPT/packaging only).
 
 ### Commands to Resume
 
@@ -244,6 +245,22 @@ Milestone 4 adds:
 - A package-local static HTML/CSS/JavaScript dashboard with no frontend dependency or build step, same-origin requests, at most 50 rows, non-overlapping polling, replay-time polling pause, text-only DOM assignment, responsive geometry, and explicit unsupported-coverage labels.
 - Actual empty and three-alert screenshots after desktop and narrow browser inspection.
 
+Milestone 5 adds:
+
+- `tools/generate_benchmark_fixture.py`: a deterministic, offline, documentation-address-range PCAP generator producing one sustained-load fixture (20,000 background SYN + 199 background DNS events kept below every configured threshold, plus exact copies of the verified Milestone 1 port-scan, Milestone 2 SYN-flood, and Milestone 3 DGA threshold patterns). Not committed (`.gitignore` `*.pcap`); regenerated on demand, with a byte-determinism/`--check`/no-network-import test suite mirroring Milestones 1–3.
+- `tools/run_benchmark.py`: a developer-only measurement harness that replays that fixture through the unmodified `sih26145.runtime.build_detection_pipeline` output via the existing `run_replay`/`run_command` path, using a `TimingPipeline` subclass of the frozen `DetectionPipeline` (subclassing rather than wrapping is required because `run_command` only routes DNS events to a detector that `isinstance`-checks true as `DetectionPipeline`) to record per-event wall-clock processing time and per-alert latency, plus `resource.getrusage(RUSAGE_SELF)` CPU/peak-RSS and wall-clock-derived throughput.
+- No detector, contract, replay-runner, API, or model behavior changed for this milestone.
+- Measured, recorded, real evidence (three runs; see `docs/evaluation.md`): `13,299`-`14,705` events/sec, `7.48`-`8.27` Mbps, event-processing-latency P50/P95/P99 approximately `0.02`/`0.03`/`0.35`-`0.47` ms, alert-latency P50/P95/P99 approximately `0.35`-`0.42`/`0.89`-`0.93`/`0.94`-`0.98` ms, `1.08`-`1.28` s total CPU, `~140` MiB peak RSS.
+
+## Milestone 5 Acceptance
+
+- [x] Locked environment synchronization succeeds and the recorded pre-implementation baseline (`347 passed`) passed.
+- [x] The benchmark fixture is deterministic, offline, byte-reproducible, and produces exactly the expected event/alert counts on native Zeek replay.
+- [x] The benchmark harness measures the existing, unmodified detector/replay path (no duplicated detection logic, no new detector/model behavior).
+- [x] Throughput (events/sec, Mbps), event-processing and alert-latency P50/P95/P99, CPU, and peak RSS are measured from real command execution, not estimated or fabricated.
+- [x] Focused unit tests cover the percentile function and the timing proxy's recording/dispatch behavior; full suite, Ruff lint/format, strict mypy, all four fixture `--check` commands, and `uv build` pass together.
+- [x] `docs/evaluation.md`, `docs/requirements-traceability.md`, `docs/limitations.md`, `docs/ppt-notes.md`, `docs/architecture.md`, `README.md`, and this file are synchronized with the measured results and honest scope limitations.
+
 ## Milestone 4 Acceptance
 
 - [x] Locked environment synchronization succeeds and the recorded pre-implementation baseline passed.
@@ -302,6 +319,27 @@ PR #3 follow-up review found that lowercasing preceded ASCII validation. `normal
 - [x] Requirements traceability, feature documentation, PPT facts, and this handoff are current.
 
 ## Exact Evidence Commands
+
+Fresh Milestone 5 implementation/verification was run from the dedicated worktree on 2026-08-30:
+
+```bash
+UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv sync --frozen --group dev
+UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv run pytest -q
+UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv run ruff check .
+UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv run ruff format --check .
+UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv run mypy src tests tools
+UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv run python tools/generate_milestone1_fixtures.py --output tests/fixtures/milestone1 --check
+UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv run python tools/generate_milestone2_fixtures.py --output tests/fixtures/milestone2 --check
+UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv run python tools/generate_milestone3_fixtures.py --output tests/fixtures/milestone3 --check
+UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv run python tools/generate_benchmark_fixture.py --output tests/fixtures/benchmark --check
+UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv run zeek -D -b -r tests/fixtures/benchmark/sustained_load.pcap src/sih26145/zeek/emit_events.zeek
+UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv run sih26145-replay tests/fixtures/benchmark/sustained_load.pcap
+UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv run python tools/run_benchmark.py --pcap tests/fixtures/benchmark/sustained_load.pcap
+UV_CACHE_DIR=/tmp/sih26145-m5-uv-cache uv build
+git diff --cached --check
+```
+
+Observed results: locked sync checked 33 packages; the full suite reported `359 passed`; Ruff lint passed; Ruff confirmed 73 files formatted; strict mypy found no issues in 57 source files; all four fixture `--check` commands exited `0`; native Zeek replay of the generated benchmark PCAP emitted exactly `20321` events ending with `end_of_stream`; `sih26145-replay` on the same PCAP emitted exactly 3 alert lines (`PORT_SCAN` confidence `0.7917`, `SYN_FLOOD` confidence `0.75`, `DGA` probability `0.9999563398163442`); `tools/run_benchmark.py` ran three times, each reporting exactly `20321` events processed and 3 alerts emitted, with the throughput/latency/CPU/RSS figures recorded in `docs/evaluation.md`; the sdist/wheel build succeeded; `git diff --cached --check` passed.
 
 Fresh Milestone 4 verification was run from the dedicated worktree on 2026-08-30:
 
@@ -514,16 +552,16 @@ Read-only ingest:             VERIFIED for deterministic PCAP replay
 Active probing/return path:   ABSENT and verified for the current path
 Payload decryption:           ABSENT and verified for SYN and DNS/DGA paths
 Streaming processing:         VERIFIED; all three class callbacks precede EOS
-Bounded alert latency:        Incremental path implemented; wall-time percentiles NOT MEASURED
+Bounded alert latency:        VERIFIED; P50/P95/P99 measured, sub-millisecond (single-process, one deterministic replay)
 Alert schema/evidence:        VERIFIED with actual strict PORT_SCAN, SYN_FLOOD, and DGA records
 Dataset research/provenance:  Source licences/hashes/revision and fixture provenance VERIFIED
 ML model trained:             VERIFIED for dga_logreg_v1 with grouped held-out evaluation
 Model storage/resume:         Packaged joblib + strict metadata VERIFIED; remote resume NOT APPLICABLE
 Offline model inference:      VERIFIED for packaged local DGA model with socket disabled
 Threat coverage:              3 / 6 demonstrated; DDoS limited to SYN flood, DNS limited to DGA
-Throughput measured:          NO
-Demo reproducible:            VERIFIED for native scan, SYN-flood, DGA, and comparison replay
-PPT evidence:                 Actual dashboard screenshots captured; performance plots NOT CAPTURED
+Throughput measured:          YES; 13,300-14,700 events/sec (7.5-8.3 Mbps), single-process CPU, see docs/evaluation.md
+Demo reproducible:            VERIFIED for native scan, SYN-flood, DGA, comparison replay, and the benchmark
+PPT evidence:                 Actual dashboard screenshots and measured benchmark table captured; final deck NOT ASSEMBLED
 ```
 
 ## Limitations and Risks
@@ -563,7 +601,7 @@ Milestones 1 through 4 are merged, verified, and frozen on `main` (Milestone 4 v
 
 1. Confirm the repository/worktree and inspect `git status`, diffs, and recent commits.
 2. Read `AGENTS.md`, `docs/problem.md`, this file, and relevant source/tests completely.
-3. Confirm work continues on `main` (no milestone branch/worktree is currently active); keep Milestones 1 through 4 frozen unless a demonstrated regression requires touching them.
+3. Confirm work continues on `feature/milestone-5-benchmark` in `.worktrees/milestone-5-benchmark` until it is reviewed, merged, and frozen; keep Milestones 1 through 4 frozen unless a demonstrated regression requires touching them.
 4. Treat this as a verified snapshot, not a substitute for fresh commands.
-5. Do not redesign frozen Milestones 1 through 4; the next milestone (benchmark/PPT work) still needs its own fresh branch/worktree per the branch policy if it involves code changes.
+5. Do not redesign frozen Milestones 1 through 4. Milestone 5 is implemented and gate-verified but not yet reviewed/merged; do not start a new milestone worktree before that happens.
 6. Never claim a class, model, dashboard, metric, screenshot, or benchmark without actual current evidence.

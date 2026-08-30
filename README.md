@@ -1,6 +1,6 @@
 # SIH26145
 
-Small, passive, streaming MVP for **AI-Based Detection of Cyber Threats in Unidirectional IP Traffic**. The current path replays deterministic PCAPs through native Zeek and emits strict, evidence-bearing `PORT_SCAN`, `SYN_FLOOD`, and locally inferred `DGA` alerts. A loopback-only API stores those actual alerts in a bounded in-memory queue and serves a same-origin dashboard. Demonstrated coverage spans three of six named classes, with DDoS limited to SYN floods and DNS coverage limited to DGA lexical classification; performance benchmarks are not implemented yet.
+Small, passive, streaming MVP for **AI-Based Detection of Cyber Threats in Unidirectional IP Traffic**. The current path replays deterministic PCAPs through native Zeek and emits strict, evidence-bearing `PORT_SCAN`, `SYN_FLOOD`, and locally inferred `DGA` alerts. A loopback-only API stores those actual alerts in a bounded in-memory queue and serves a same-origin dashboard. Demonstrated coverage spans three of six named classes, with DDoS limited to SYN floods and DNS coverage limited to DGA lexical classification. Measured single-process sustained-replay throughput, alert-latency percentiles, CPU, and peak memory are recorded in [`docs/evaluation.md`](docs/evaluation.md).
 
 ## Prerequisites
 
@@ -19,6 +19,7 @@ uv sync --frozen --group dev
 uv run python tools/generate_milestone1_fixtures.py --output tests/fixtures/milestone1 --check
 uv run python tools/generate_milestone2_fixtures.py --output tests/fixtures/milestone2 --check
 uv run python tools/generate_milestone3_fixtures.py --output tests/fixtures/milestone3 --check
+uv run python tools/generate_benchmark_fixture.py --output tests/fixtures/benchmark --check
 uv run pytest -m "not e2e" -v
 uv run pytest -m e2e -v
 uv run ruff check .
@@ -61,6 +62,17 @@ Alert JSON Lines are written only to stdout and flushed immediately. Child stder
 Default port-scan detection requires at least 20 deduplicated SYN attempts in a 10-second capture-time window plus fan-out to at least 15 destination ports or 15 destination hosts. Default SYN-flood detection requires at least 100 deduplicated SYN events from at least 20 unique sources to one destination endpoint in a 10-second capture-time window. Those two confidence scores are explainable heuristics. DGA confidence is the persisted model's local class probability at a fixed `0.5` threshold; it is not proof that a domain is malicious and its measured evaluation does not establish production performance.
 
 Configuration is rejected before Zeek starts if a window is too small to keep its maximum derived rate finite, exceeds the 60-second UID deduplication TTL, or a threshold exceeds its detector's effective state capacity. Port-scan capacity is 4,096 events per source; SYN-flood capacity is 8,192 events per target under default limits.
+
+## Benchmark Demo
+
+The benchmark PCAP is generated, not committed (it is far larger than the other fixtures and `.gitignore` deliberately excludes it). Generate it, then measure the existing three-detector pipeline against it:
+
+```bash
+uv run python tools/generate_benchmark_fixture.py --output tests/fixtures/benchmark
+uv run python tools/run_benchmark.py --pcap tests/fixtures/benchmark/sustained_load.pcap
+```
+
+The fixture mixes 20,000+ benign background SYN/DNS events (kept below every configured threshold by construction) with one exact copy each of the verified Milestone 1 port-scan, Milestone 2 SYN-flood, and Milestone 3 DGA threshold patterns, so one deterministic replay yields both a meaningful throughput sample and exactly 3 known alerts for latency measurement. The tool reuses the existing `DetectionPipeline`/`run_replay` path unchanged; it only times it and reports `events/sec`, `Mbps`, P50/P95/P99 event-processing and alert latency, and this-process CPU/peak-RSS (`resource.getrusage`, excludes the separate native Zeek child process). See [`docs/evaluation.md`](docs/evaluation.md) for recorded measured results and methodology.
 
 ## Local Dashboard Demo
 

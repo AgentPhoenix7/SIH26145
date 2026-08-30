@@ -1,6 +1,6 @@
 # Streaming Detection and Local Dashboard Architecture
 
-Status: **implemented for Milestones 1–4: port scan, SYN flood, DNS/DGA replay, and local dashboard**
+Status: **implemented for Milestones 1–4 (port scan, SYN flood, DNS/DGA replay, local dashboard); Milestone 5 (end-to-end benchmark) added developer-only measurement tooling, no runtime-path change**
 
 Designed: **2026-08-26**
 
@@ -365,6 +365,10 @@ Known limitations of this slice are explicit:
 - Failing on state pressure preserves bounded memory and result integrity but stops the current prototype run; a measured live deployment will need a bounded degradation policy and health telemetry.
 - Zeek UID deduplication handles TCP SYN retransmissions within one Zeek run; it is not a durable identity across separate replays.
 - The API/store/dashboard are local, process-only, unauthenticated, and non-persistent; one synchronous fixture replay temporarily pauses same-origin polling.
-- No throughput or latency claim exists until measured on the documented hardware.
+- Milestone 5 measured throughput, alert latency, CPU, and memory (`docs/evaluation.md`); the figures are single-process, single-replay, CPU-only, and specific to the recorded hardware.
+
+## Milestone 5 Benchmark Tooling
+
+`tools/generate_benchmark_fixture.py` and `tools/run_benchmark.py` are developer-only measurement tooling, not part of the shipped runtime path (they are not console scripts and are never imported by `sih26145.cli`/`sih26145.api`). `run_benchmark.py` measures the existing `DetectionPipeline`/`run_replay` path unchanged: it subclasses the frozen `DetectionPipeline` (`TimingPipeline`) only to time `process()` calls, because `run_command` deliberately dispatches DNS events by an `isinstance(detector, DetectionPipeline)` check rather than duck typing. No detector, contract, or replay-runner behavior changed for this milestone.
 
 The user approved the Milestone 1 design at `docs/superpowers/plans/2026-08-26-milestone-1-streaming-port-scan.md` and approved the deadline-scoped Milestone 2 plan recorded in `PROGRESS.md`. Each implementation was completed test-first in its dedicated branch/worktree and verified on 2026-08-28 with native Zeek replay, focused and full tests, Ruff, mypy, deterministic fixture checks, and actual alert-schema validation.
