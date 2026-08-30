@@ -32,11 +32,20 @@ isolates Zeek's contribution with no other reaped child to conflate it
 with). Combined CPU seconds are a straightforward sum; combined peak RSS
 is a conservative upper bound (the two processes' peaks are not
 necessarily simultaneous, so the true combined peak can only be lower).
+
+Per-event bookkeeping (processing-duration samples, emitted alerts, alert
+latencies) is kept in plain lists that grow with the input's event count,
+which would be unbounded for an arbitrary ``--pcap``. To keep this bounded
+by a known, fixed size rather than accepting arbitrary large input, the
+supplied PCAP's SHA-256 is validated against its generated manifest
+(``<pcap>.manifest.json``, produced by ``generate_benchmark_fixture.py``)
+before any replay starts.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import platform
@@ -59,6 +68,35 @@ from sih26145.replay import ReplayResult, run_replay
 from sih26145.runtime import build_detection_pipeline
 
 DEFAULT_PCAP = Path("tests/fixtures/benchmark/sustained_load.pcap")
+
+
+class UnvalidatedPcapError(ValueError):
+    """The supplied PCAP does not match its generated benchmark manifest."""
+
+
+def _validate_pcap_against_manifest(pcap_path: Path) -> None:
+    """Reject any PCAP whose bytes do not match its manifest's recorded hash.
+
+    This tool's per-event bookkeeping grows with the input's event count;
+    restricting input to exactly the validated, generator-produced fixture
+    keeps that growth bounded by a known, fixed size instead of accepting
+    an arbitrary, potentially very large capture.
+    """
+
+    manifest_path = pcap_path.with_suffix(".manifest.json")
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise UnvalidatedPcapError(
+            f"missing or unreadable benchmark manifest: {manifest_path}"
+        ) from exc
+    expected_sha256 = manifest.get("capture_sha256")
+    actual_sha256 = hashlib.sha256(pcap_path.read_bytes()).hexdigest()
+    if not isinstance(expected_sha256, str) or expected_sha256 != actual_sha256:
+        raise UnvalidatedPcapError(
+            f"{pcap_path} does not match {manifest_path}'s capture_sha256; "
+            "regenerate it with tools/generate_benchmark_fixture.py"
+        )
 
 
 @dataclass(slots=True)
@@ -309,6 +347,8 @@ class _Collected:
 def run_benchmark(pcap_path: Path) -> BenchmarkReport:
     """Replay ``pcap_path`` once and return measured throughput/latency/CPU/RSS."""
 
+    _validate_pcap_against_manifest(pcap_path)
+
     detector_pipeline = build_detection_pipeline(
         port_scan=PortScanDetector(config=ScanConfig()),
         syn_flood=SynFloodDetector(config=SynFloodConfig()),
@@ -376,7 +416,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"input_error: pcap_not_regular_file: {args.pcap}", file=sys.stderr)
         return 2
 
-    report = run_benchmark(args.pcap)
+    try:
+        report = run_benchmark(args.pcap)
+    except UnvalidatedPcapError as exc:
+        print(f"input_error: {exc}", file=sys.stderr)
+        return 2
     payload = json.dumps(report.as_dict(), indent=2, sort_keys=True)
     if args.output is not None:
         args.output.write_text(payload + "\n")

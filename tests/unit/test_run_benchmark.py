@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import io
+import json
+from pathlib import Path
 
 import pytest
 
@@ -14,8 +17,10 @@ from tests.factories import dns, syn
 from tools.run_benchmark import (
     EventSample,
     TimingPipeline,
+    UnvalidatedPcapError,
     _EmissionClock,
     _make_emit_alert,
+    _validate_pcap_against_manifest,
     percentile,
 )
 
@@ -105,6 +110,40 @@ def test_emit_alert_measures_from_process_start_through_actual_serialization() -
     # The measured interval starts at process() entry, so it is at least as long
     # as that event's own recorded processing duration.
     assert alert_latencies[0] >= samples[0].duration_seconds
+
+
+def _write_manifest(manifest_path: Path, *, capture_sha256: str) -> None:
+    manifest_path.write_text(json.dumps({"capture_sha256": capture_sha256}))
+
+
+def test_validate_pcap_against_manifest_accepts_a_matching_capture(tmp_path: Path) -> None:
+    pcap_path = tmp_path / "sustained_load.pcap"
+    pcap_path.write_bytes(b"deterministic content")
+    _write_manifest(
+        pcap_path.with_suffix(".manifest.json"),
+        capture_sha256=hashlib.sha256(pcap_path.read_bytes()).hexdigest(),
+    )
+
+    _validate_pcap_against_manifest(pcap_path)  # must not raise
+
+
+def test_validate_pcap_against_manifest_rejects_a_tampered_or_arbitrary_capture(
+    tmp_path: Path,
+) -> None:
+    pcap_path = tmp_path / "sustained_load.pcap"
+    pcap_path.write_bytes(b"an arbitrary, potentially very large capture")
+    _write_manifest(pcap_path.with_suffix(".manifest.json"), capture_sha256="0" * 64)
+
+    with pytest.raises(UnvalidatedPcapError, match="capture_sha256"):
+        _validate_pcap_against_manifest(pcap_path)
+
+
+def test_validate_pcap_against_manifest_rejects_a_missing_manifest(tmp_path: Path) -> None:
+    pcap_path = tmp_path / "no_manifest.pcap"
+    pcap_path.write_bytes(b"anything")
+
+    with pytest.raises(UnvalidatedPcapError, match="manifest"):
+        _validate_pcap_against_manifest(pcap_path)
 
 
 def test_emit_alert_without_a_preceding_process_call_records_nothing() -> None:

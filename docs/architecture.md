@@ -365,7 +365,7 @@ Known limitations of this slice are explicit:
 - Failing on state pressure preserves bounded memory and result integrity but stops the current prototype run; a measured live deployment will need a bounded degradation policy and health telemetry.
 - Zeek UID deduplication handles TCP SYN retransmissions within one Zeek run; it is not a durable identity across separate replays.
 - The API/store/dashboard are local, process-only, unauthenticated, and non-persistent; one synchronous fixture replay temporarily pauses same-origin polling.
-- Milestone 5 measured throughput, alert latency, CPU, and memory (`docs/evaluation.md`); the figures are single-process, single-replay, CPU-only, and specific to the recorded hardware.
+- Milestone 5 measured throughput, alert latency, and CPU/memory across the Python detector process and its native Zeek child (`docs/evaluation.md`); the figures are single-replay and specific to the recorded hardware.
 
 ## Milestone 5 Benchmark Tooling
 

@@ -64,7 +64,7 @@ Last updated: **2026-08-30 (UTC)**, Milestone 5 implementation slice
 
 - UDP reflection/amplification and DNS tunnelling are not implemented.
 - Demonstrated detector coverage spans three of six named classes, but DDoS is limited to SYN floods and DNS coverage to DGA lexical classification; no full-coverage claim is valid.
-- The Milestone 5 benchmark is single-process/single-replay/CPU-only and excludes the separate native Zeek child process and API/dashboard polling latency; see `docs/evaluation.md` for full scope limitations.
+- The Milestone 5 benchmark is single-replay, across the Python detector process and its native Zeek child (both measured separately for CPU/RSS), and excludes API/dashboard polling latency; see `docs/evaluation.md` for full scope limitations.
 
 ### Deferred
 
@@ -554,7 +554,7 @@ Read-only ingest:             VERIFIED for deterministic PCAP replay
 Active probing/return path:   ABSENT and verified for the current path
 Payload decryption:           ABSENT and verified for SYN and DNS/DGA paths
 Streaming processing:         VERIFIED; all three class callbacks precede EOS
-Bounded alert latency:        VERIFIED; P50/P95/P99 measured over 51 alert samples, sub-millisecond (single-process, one deterministic replay)
+Bounded alert latency:        VERIFIED; P50/P95/P99 measured over 51 alert samples, ~0.8-1.1 ms across 3 clean runs (one exploratory run under host contention reached 13-14 ms; see docs/evaluation.md)
 Alert schema/evidence:        VERIFIED with actual strict PORT_SCAN, SYN_FLOOD, and DGA records
 Dataset research/provenance:  Source licences/hashes/revision and fixture provenance VERIFIED
 ML model trained:             VERIFIED for dga_logreg_v1 with grouped held-out evaluation

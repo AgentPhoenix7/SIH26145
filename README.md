@@ -1,6 +1,6 @@
 # SIH26145
 
-Small, passive, streaming MVP for **AI-Based Detection of Cyber Threats in Unidirectional IP Traffic**. The current path replays deterministic PCAPs through native Zeek and emits strict, evidence-bearing `PORT_SCAN`, `SYN_FLOOD`, and locally inferred `DGA` alerts. A loopback-only API stores those actual alerts in a bounded in-memory queue and serves a same-origin dashboard. Demonstrated coverage spans three of six named classes, with DDoS limited to SYN floods and DNS coverage limited to DGA lexical classification. Measured single-process sustained-replay throughput, alert-latency percentiles, CPU, and peak memory are recorded in [`docs/evaluation.md`](docs/evaluation.md).
+Small, passive, streaming MVP for **AI-Based Detection of Cyber Threats in Unidirectional IP Traffic**. The current path replays deterministic PCAPs through native Zeek and emits strict, evidence-bearing `PORT_SCAN`, `SYN_FLOOD`, and locally inferred `DGA` alerts. A loopback-only API stores those actual alerts in a bounded in-memory queue and serves a same-origin dashboard. Demonstrated coverage spans three of six named classes, with DDoS limited to SYN floods and DNS coverage limited to DGA lexical classification. Measured sustained-replay throughput, alert-latency percentiles, and CPU/peak memory across the Python detector process and its native Zeek child are recorded in [`docs/evaluation.md`](docs/evaluation.md).
 
 ## Prerequisites
 
