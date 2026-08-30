@@ -38,7 +38,7 @@ Recall is weak and the false-positive rate is too high for an unattended product
 | Median inference time | `2.340909655567489` microseconds/domain |
 | Derived throughput | `427184.36297686916` domains/second |
 
-This is model batch inference only. It excludes Zeek, JSON validation, lexical extraction outside the timed matrix, process startup, alert serialization, CPU utilization, and memory. It is not the required end-to-end traffic-throughput benchmark, which remains unmeasured.
+This is model batch inference only. It excludes Zeek, JSON validation, lexical extraction outside the timed matrix, process startup, alert serialization, CPU utilization, and memory. It is not the required end-to-end traffic-throughput benchmark; that benchmark is measured separately below (see "Milestone 5: End-to-End Throughput, Alert Latency, CPU, and Memory").
 
 ## Replay Evidence
 
@@ -52,7 +52,7 @@ Both are deterministic controlled examples, not estimates of production true-pos
 
 `tools/generate_benchmark_fixture.py` deterministically generates one offline PCAP (`tests/fixtures/benchmark/sustained_load.pcap`, generated on demand, not committed) mixing:
 
-- 20,000 background TCP SYN packets across 400 source and 200 destination addresses (one fixed destination port), constructed so no source exceeds 15 attempts/ports/hosts and no destination exceeds 100 events/20 sources — i.e. deliberately below every configured `PORT_SCAN`/`SYN_FLOOD` threshold;
+- 20,000 background TCP SYN packets across 400 source and 200 destination addresses. Attempt/event counts alone do *not* stay under threshold — each source reaches roughly 50 attempts overall (about 25 within any 10-second detector window, above `PORT_SCAN`'s `minimum_attempts=20`), and each destination receives exactly 100 events overall (at `SYN_FLOOD`'s `minimum_syn_events=100`). No alert fires because the *other* half of each detector's AND/OR condition never crosses threshold: the fixed destination port and the exact 400:200 source-to-target ratio mean every source reaches only 1 unique destination port and 1 unique destination host (`PORT_SCAN` additionally requires `unique_ports>=15` or `unique_hosts>=15`), and every destination sees only 2 unique sources (`SYN_FLOOD` additionally requires `unique_sources>=20`);
 - 199 distinct benign DNS queries;
 - 10 independent copies of the verified Milestone 1 `vertical_at_threshold` port-scan pattern (20 attempts, 15 unique ports each — the exact Milestone 1 threshold shape), each from its own unused source address so every incident fires its own alert without relying on cooldown expiry;
 - 10 independent copies of the verified Milestone 2 `syn_flood_at_threshold` pattern (100 events, 20 unique sources each), each against its own unused target address; and

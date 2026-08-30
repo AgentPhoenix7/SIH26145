@@ -2,7 +2,7 @@
 
 Last verified: **2026-08-30 (UTC)**
 
-These are presentation-ready facts for Milestones 1 through 4. Actual local dashboard screenshots are recorded below. No end-to-end performance measurement is claimed here.
+These are presentation-ready facts for Milestones 1 through 5. Actual local dashboard screenshots and the measured end-to-end benchmark are recorded below.
 
 ## Verified Demo Story
 

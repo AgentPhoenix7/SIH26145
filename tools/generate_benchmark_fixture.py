@@ -7,9 +7,12 @@ introduces no new detector, model, or protocol behavior.
 
 The capture mixes:
 
-- a large background of benign, widely fanned-out SYN traffic that stays
-  under every configured port-scan and SYN-flood threshold, to give a
-  meaningful sustained-rate sample;
+- a large background of benign SYN traffic that stays below alert
+  threshold by fan-out/source-diversity monoculture (1 destination
+  host/port per source, 2 unique sources per destination) rather than by
+  keeping attempt/event counts low -- those actually reach or exceed the
+  detectors' count thresholds -- to give a meaningful sustained-rate
+  sample without a false alert;
 - a background of distinct benign DNS queries, to give a meaningful sample
   of stateless DGA-path latency;
 - ``PORT_SCAN_INCIDENTS`` independent copies of the Milestone 1
@@ -103,14 +106,20 @@ def _load_target_ip(index: int) -> str:
 
 
 def _load_syn_packets(*, start_ts: float) -> tuple[SynPacket, ...]:
-    """Benign background SYN traffic: stays below every configured threshold.
+    """Benign background SYN traffic: no alert fires, but not because counts stay low.
 
-    Per source: ``LOAD_SYN_EVENTS / LOAD_SOURCE_POOL`` attempts, all to one
+    Per source: ``LOAD_SYN_EVENTS / LOAD_SOURCE_POOL`` attempts (about 50
+    overall, about 25 within any 10-second window -- above
+    ``PortScanDetector``'s default ``minimum_attempts=20``), all to one
     fixed port and (because ``LOAD_SOURCE_POOL`` is an exact multiple of
     ``LOAD_TARGET_POOL``) exactly one destination host, so neither the
-    unique-port nor the unique-host port-scan condition can be reached.
-    Per target: ``LOAD_SYN_EVENTS / LOAD_TARGET_POOL`` events from exactly
-    two distinct sources, both below the SYN-flood event and source minimums.
+    unique-port nor the unique-host port-scan condition can be reached
+    regardless of attempt count. Per target: ``LOAD_SYN_EVENTS /
+    LOAD_TARGET_POOL`` events (exactly 100 -- at, not below,
+    ``SynFloodDetector``'s default ``minimum_syn_events=100``) from exactly
+    two distinct sources, which *is* below the default
+    ``minimum_unique_sources=20``, so the flood's AND condition fails on
+    source diversity, not event count.
     """
 
     return tuple(
