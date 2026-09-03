@@ -94,3 +94,7 @@ Actual inspected screenshots:
 See [architecture](docs/architecture.md), [feature definitions](docs/features.md), [evaluation](docs/evaluation.md), [limitations](docs/limitations.md), [requirements traceability](docs/requirements-traceability.md), and [current progress](PROGRESS.md) for exact semantics and evidence.
 
 The submission dashboard deliberately uses browser-native HTML/CSS/JavaScript, so it has no frontend package manager, build step, framework, or remote asset dependency. If later frontend dependencies become necessary, prefer Bun; they are not required for this MVP.
+
+## Team Members
+
+- Anis Mandal
