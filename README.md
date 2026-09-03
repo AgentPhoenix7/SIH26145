@@ -1,4 +1,49 @@
-# SIH26145
+<div align="center">
+
+# 🛡️ SIH26145
+
+### AI-Based Detection of Cyber Threats in Unidirectional IP Traffic
+
+![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)
+![Zeek](https://img.shields.io/badge/Zeek-8.2.2-00A98F)
+![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white)
+![scikit--learn](https://img.shields.io/badge/scikit--learn-DGA%20Model-F7931E?logo=scikitlearn&logoColor=white)
+![uv](https://img.shields.io/badge/uv-Package%20Manager-DE5FE9)
+
+[Overview](#-overview) • [Prerequisites](#prerequisites) • [Setup](#setup-and-verification) • [Replay Demo](#replay-demo) • [Benchmark](#benchmark-demo) • [Dashboard](#local-dashboard-demo) • [Team](#-team)
+
+</div>
+
+---
+
+## 📋 Problem Statement
+
+| Field | Details |
+|---|---|
+| Problem Statement ID | 26145 |
+| Organization | National Technical Research Organisation (NTRO) |
+| Theme | Blockchain & Cybersecurity |
+| Category | Software |
+| Team Name | Aegisnet1.O |
+| Team ID | *Not yet assigned* |
+
+---
+
+## 👥 Team
+
+**Team Aegisnet1.O**
+
+| Name |
+|---|
+| Anis Mandal |
+| Sayan Samanta |
+| Goutam Mukherjee |
+| Parijat Dey |
+| Somdatta Kirtannia |
+
+---
+
+## 🎯 Overview
 
 Small, passive, streaming MVP for **AI-Based Detection of Cyber Threats in Unidirectional IP Traffic**. The current path replays deterministic PCAPs through native Zeek and emits strict, evidence-bearing `PORT_SCAN`, `SYN_FLOOD`, and locally inferred `DGA` alerts. A loopback-only API stores those actual alerts in a bounded in-memory queue and serves a same-origin dashboard. Demonstrated coverage spans three of six named classes, with DDoS limited to SYN floods and DNS coverage limited to DGA lexical classification. Measured sustained-replay throughput, alert-latency percentiles, and CPU/peak memory across the Python detector process and its native Zeek child are recorded in [`docs/evaluation.md`](docs/evaluation.md).
 
@@ -94,7 +139,3 @@ Actual inspected screenshots:
 See [architecture](docs/architecture.md), [feature definitions](docs/features.md), [evaluation](docs/evaluation.md), [limitations](docs/limitations.md), [requirements traceability](docs/requirements-traceability.md), and [current progress](PROGRESS.md) for exact semantics and evidence.
 
 The submission dashboard deliberately uses browser-native HTML/CSS/JavaScript, so it has no frontend package manager, build step, framework, or remote asset dependency. If later frontend dependencies become necessary, prefer Bun; they are not required for this MVP.
-
-## Team Members
-
-- Anis Mandal
